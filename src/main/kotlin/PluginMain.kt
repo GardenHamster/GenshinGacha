@@ -1,4 +1,4 @@
-package org.example.mirai.plugin
+package com.hamster.pray.genshin
 
 import net.mamoe.mirai.console.plugin.jvm.JvmPluginDescription
 import net.mamoe.mirai.console.plugin.jvm.KotlinPlugin
@@ -31,18 +31,16 @@ import net.mamoe.mirai.utils.info
 
 object PluginMain : KotlinPlugin(
     JvmPluginDescription(
-        id = "org.example.mirai-example",
-        name = "插件示例",
+        id = "com.hamster.pray.genshin",
+        name = "原神模拟抽卡",
         version = "0.1.0"
     ) {
-        author("作者名称或联系方式")
+        author("花园仓鼠")
         info(
             """
-            这是一个测试插件, 
-            在这里描述插件的功能和用法等.
+            一个调用https://github.com/GardenHamster/GenshinPray接口进行原神模拟抽卡的mirai插件
         """.trimIndent()
         )
-        // author 和 info 可以删除.
     }
 ) {
     override fun onEnable() {

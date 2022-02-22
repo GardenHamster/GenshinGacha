@@ -1,4 +1,4 @@
-package org.example.mirai.plugin
+package com.hamster.pray.genshin
 
 import net.mamoe.mirai.alsoLogin
 import net.mamoe.mirai.console.MiraiConsole
