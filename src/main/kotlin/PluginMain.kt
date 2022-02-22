@@ -51,7 +51,7 @@ object PluginMain : KotlinPlugin(
             //群消息
             //复读示例
             if (message.contentToString().startsWith("复读")) {
-                group.sendMessage(message.contentToString().replace("复读", ""))
+                group.sendMessage(message.contentToString().replace("复读", "略略略"))
             }
             if (message.contentToString() == "hi") {
                 //群内发送
