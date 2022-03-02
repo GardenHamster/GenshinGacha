@@ -1,9 +1,16 @@
+#可用群
 enabled_group: [284196625]
+#api地址:端口
 apiUrl: 'http://103.233.255.230:8080'
+#api授权码
 authorzation: theresa3rd
+#指令前缀
 prefix: '#'
+#出现异常是返回的消息
 errorMsg: 出了点小问题，问题不大，请艾特管理员...
+#开始处理前返回的消息
 prayingMsg: 正在拉取结果...
+#下面都是一些功能指令
 rolePrayOne: 角色单抽
 rolePrayTen: 角色十连
 armPrayOne: 武器单抽
