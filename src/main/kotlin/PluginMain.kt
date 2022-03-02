@@ -43,7 +43,7 @@ object PluginMain : KotlinPlugin(
     JvmPluginDescription(
         id = "com.hamster.pray.genshin",
         name = "原神模拟抽卡",
-        version = "0.1.0"
+        version = "1.0.0"
     ) {
         author("花园仓鼠")
         info(
@@ -117,7 +117,6 @@ object PluginMain : KotlinPlugin(
                         launch {
                             val type = object : TypeToken<ApiResult<Any>>() {}.type
                             val apiResult = Gson().fromJson<ApiResult<Any>>(response.body!!.string(), type)
-                            val apiData = apiResult.data;
                             if (apiResult.code != 0) {
                                 group.sendMessage("${Config.errorMsg}，接口返回code：${apiResult.code}，接口返回message：${apiResult.message}")
                                 return@launch
