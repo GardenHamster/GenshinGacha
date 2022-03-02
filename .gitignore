@@ -6,4 +6,5 @@
 /out/
 /run/
 /bots/
+/data/
 src/test/kotlin/RunMirai.kt

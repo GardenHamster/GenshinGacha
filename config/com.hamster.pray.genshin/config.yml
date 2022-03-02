@@ -1,4 +1,18 @@
 enabled_group: 
   - 284196625
-authorzation: theresa3rd
 apiUrl: 'http://103.233.255.230:8080'
+authorzation: theresa3rd
+prefix: '#'
+errorMsg: 出了点小问题，问题不大，请艾特管理员...
+prayingMsg: 正在拉取结果...
+rolePrayOne: 角色单抽
+rolePrayTen: 角色十连
+armPrayOne: 武器单抽
+armPrayTen: 武器十连
+permPrayOne: 常驻单抽
+permPrayTen: 常驻十连
+assign: 定轨
+getPondInfo: 蛋池
+getPrayDetail: 祈愿详情
+getPrayRecords: 祈愿记录
+getLuckRanking: 欧气排行

@@ -8,6 +8,8 @@ object Config: AutoSavePluginConfig("config") {
     val apiUrl by value<String>("http://103.233.255.230:8080")
     val authorzation by value<String>("theresa3rd")
     val prefix by value<String>("#")
+    val errorMsg by value<String>("出了点小问题，问题不大，请艾特管理员...")
+    val prayingMsg by value<String>("正在拉取结果...")
     val rolePrayOne by value<String>("角色单抽")
     val rolePrayTen by value<String>("角色十连")
     val armPrayOne by value<String>("武器单抽")
