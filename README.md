@@ -2,7 +2,7 @@
 
 ## 简介
 - 一个可以在[mcl](https://github.com/iTXTech/mirai-console-loader)中运行的模拟原神抽卡的机器人插件
-- 调用[GardenHamster/GenshinPray](https://github.com/GardenHamster/GenshinPray) api进行模拟抽卡
+- 调用[GenshinPray api](https://github.com/GardenHamster/GenshinPray)进行模拟抽卡
 
 ## 部署
 - 下载并安装配置[mcl](https://github.com/iTXTech/mirai-console-loader)
@@ -26,5 +26,8 @@
 ### 武器定轨
 - #定轨神乐之真意
 
-### 其他
-- 参考config.yml中的指令
+### 其他指令
+- #蛋池
+- #祈愿详情
+- #祈愿记录
+- #欧气排行
