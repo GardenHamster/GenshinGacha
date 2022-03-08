@@ -61,7 +61,11 @@ object PluginMain : KotlinPlugin(
         val eventChannel = GlobalEventChannel.parentScope(this)
         eventChannel.subscribeAlways<GroupMessageEvent> {
 
-            val client = OkHttpClient()
+            val client = OkHttpClient().newBuilder()
+            .hostnameVerifier(RxUtils.TrustAllHostnameVerifier())
+            .sslSocketFactory(RxUtils().createSSLSocketFactory(), RxUtils.TrustAllCerts())
+            .build()
+
             var builder = Request.Builder()
             builder.addHeader("Content-Type", "application/json")
             builder.addHeader("authorzation", Config.authorzation)
@@ -74,31 +78,36 @@ object PluginMain : KotlinPlugin(
                 client.newCall(builder.build()).enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
                         launch {
-                            group.sendMessage("${Config.errorMsg}，接口异常了")
+                            group.sendMessage("${Config.errorMsg}，${e.message}")
                         }
                     }
 
                     override fun onResponse(call: Call, response: Response) {
                         launch {
-                            val type = object : TypeToken<ApiResult<PrayResult>>() {}.type
-                            val apiResult = Gson().fromJson<ApiResult<PrayResult>>(response.body!!.string(), type)
-                            val apiData = apiResult.data;
-                            if (apiResult.code != 0) {
-                                group.sendMessage("${Config.errorMsg}，接口返回code：${apiResult.code}，接口返回message：${apiResult.message}")
-                                return@launch
-                            }
+                            try {
+                                val type = object : TypeToken<ApiResult<PrayResult>>() {}.type
+                                val apiResult = Gson().fromJson<ApiResult<PrayResult>>(response.body!!.string(), type)
+                                val apiData = apiResult.data;
+                                if (apiResult.code != 0) {
+                                    group.sendMessage("${Config.errorMsg}，接口返回code：${apiResult.code}，接口返回message：${apiResult.message}")
+                                    return@launch
+                                }
 
-                            var upItem = ""
-                            for (item in apiData.star5Up) {
-                                if (upItem.isNotEmpty()) upItem += "+"
-                                upItem += item.goodsName
-                            }
+                                var upItem = ""
+                                for (item in apiData.star5Up) {
+                                    if (upItem.isNotEmpty()) upItem += "+"
+                                    upItem += item.goodsName
+                                }
 
-                            val imgSaveDir = "${dataFolderPath}/download/${SimpleDateFormat("yyyyMMdd").format(Date(System.currentTimeMillis()))}"
-                            File(imgSaveDir).mkdirs()
-                            val imgSavePath = "${imgSaveDir}/${SimpleDateFormat("HHmmSS").format(Date(System.currentTimeMillis()))}.jpg"
-                            val imgMsg = HttpUtil.DownloadPicture(apiData.imgHttpUrl, imgSavePath).uploadAsImage(sender, "jpg")
-                            group.sendMessage(message.quote() + prayMsg(apiData,upItem) + imgMsg);
+                                val imgSaveDir = "${dataFolderPath}/download/${SimpleDateFormat("yyyyMMdd").format(Date(System.currentTimeMillis()))}"
+                                File(imgSaveDir).mkdirs()
+                                val imgSavePath = "${imgSaveDir}/${SimpleDateFormat("HHmmSS").format(Date(System.currentTimeMillis()))}.jpg"
+                                val imgMsg = HttpUtil.DownloadPicture(apiData.imgHttpUrl, imgSavePath).uploadAsImage(sender, "jpg")
+                                group.sendMessage(message.quote() + prayMsg(apiData,upItem) + imgMsg);
+                            }
+                            catch (e:Exception){
+                                group.sendMessage("${Config.errorMsg}，${e.message}")
+                            }
                         }
                     }
                 })
@@ -235,23 +244,16 @@ object PluginMain : KotlinPlugin(
 
                             var msgInfo=StringBuilder()
                             var star5Info=StringBuilder()
-                            var star4Info=StringBuilder()
 
                             msgInfo.appendLine("祈愿记录如下：")
 
                             star5Info.appendLine("5星列表：")
-                            star5Info.appendLine("物品--消耗抽数--获取时间")
+                            star5Info.appendLine("物品[消耗抽数]获取时间")
                             for (item in apiData.star5.all) {
-                                star5Info.appendLine("${item.goodsName}--${item.cost}--${item.createDate}")
+                                star5Info.appendLine("${item.goodsName}[${item.cost}]${item.createDate}")
                             }
 
-                            star4Info.appendLine("4星列表：")
-                            star4Info.appendLine("物品--消耗抽数--获取时间")
-                            for (item in apiData.star4.all) {
-                                star4Info.appendLine("${item.goodsName}--${item.cost}--${item.createDate}")
-                            }
-
-                            group.sendMessage(message.quote() + msgInfo.toString() + star5Info.toString() + star4Info.toString());
+                            group.sendMessage(message.quote() + msgInfo.toString() + star5Info.toString());
                         }
                     }
                 })
@@ -283,15 +285,15 @@ object PluginMain : KotlinPlugin(
                             msgInfo.appendLine("已分别统计出5星和4星出货率最高的前${apiData.top}位成员，统计开始日期：${apiData.top}，统计开始日期：${apiData.top}，数据缓存日期：${apiData.top}，排行结果每5分钟缓存一次")
 
                             star5Info.appendLine("5星排行：")
-                            star5Info.appendLine("名称(id)--累计抽数--5星数量--5星出率")
+                            star5Info.appendLine("名称(id)5星数量/累计抽数=5星出率]")
                             for (item in apiData.star5Ranking) {
-                                star5Info.appendLine("${item.memberName}(${item.memberCode})--${item.totalPrayTimes}--${item.count}--${item.rate}")
+                                star5Info.appendLine("  ${item.memberName}(${item.memberCode})[${item.count}/${item.totalPrayTimes}=${item.rate}%]")
                             }
 
                             star4Info.appendLine("4星列表：")
-                            star4Info.appendLine("名称(id)--累计抽数--4星数量--4星出率")
+                            star4Info.appendLine("名称(id)[4星数量/累计抽数=4星出率]")
                             for (item in apiData.star4Ranking) {
-                                star4Info.appendLine("${item.memberName}(${item.memberCode})--${item.totalPrayTimes}--${item.count}--${item.rate}")
+                                star4Info.appendLine("  ${item.memberName}(${item.memberCode})[${item.count}/${item.totalPrayTimes}=${item.rate}%]")
                             }
 
                             group.sendMessage(message.quote() + msgInfo.toString() + star5Info.toString() + star4Info.toString());
@@ -316,7 +318,7 @@ object PluginMain : KotlinPlugin(
                     pray(url, dlg)
                 }
                 if (msgContent.startsWith(Config.rolePrayTen)) {
-                    val pondIndexstr = StringUtil.splitKeyWord(msgContent, Config.rolePrayOne);
+                    val pondIndexstr = StringUtil.splitKeyWord(msgContent, Config.rolePrayTen);
                     var pondIndex = if (pondIndexstr.isNullOrEmpty()) 0 else pondIndexstr.toInt() - 1
                     if (pondIndex < 0) pondIndex = 0
                     val url = "${Config.apiUrl}/api/RolePray/PrayTen?memberCode=${sender.id}&memberName=${sender.nick}&pondIndex=${pondIndex}";
@@ -383,8 +385,9 @@ object PluginMain : KotlinPlugin(
                 }
             } catch (e: Exception) {
                 group.sendMessage(Config.errorMsg);
+            } catch (e: Throwable) {
+                group.sendMessage(Config.errorMsg);
             }
-
         }
         eventChannel.subscribeAlways<FriendMessageEvent> {
 
