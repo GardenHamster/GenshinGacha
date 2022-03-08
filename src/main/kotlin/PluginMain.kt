@@ -43,7 +43,7 @@ object PluginMain : KotlinPlugin(
     JvmPluginDescription(
         id = "com.hamster.pray.genshin",
         name = "原神模拟抽卡",
-        version = "1.0.0"
+        version = "1.0.1"
     ) {
         author("花园仓鼠")
         info(
@@ -280,23 +280,14 @@ object PluginMain : KotlinPlugin(
 
                             var msgInfo=StringBuilder()
                             var star5Info=StringBuilder()
-                            var star4Info=StringBuilder()
 
-                            msgInfo.appendLine("已分别统计出5星和4星出货率最高的前${apiData.top}位成员，统计开始日期：${apiData.top}，统计开始日期：${apiData.top}，数据缓存日期：${apiData.top}，排行结果每5分钟缓存一次")
-
-                            star5Info.appendLine("5星排行：")
-                            star5Info.appendLine("名称(id)5星数量/累计抽数=5星出率]")
+                            msgInfo.appendLine("出货率最高的前${apiData.top}名成员如下，统计开始日期：${apiData.startDate}，排行结果每5分钟缓存一次")
+                            star5Info.appendLine("名称(id)[5星数量/累计抽数=5星出率]")
                             for (item in apiData.star5Ranking) {
                                 star5Info.appendLine("  ${item.memberName}(${item.memberCode})[${item.count}/${item.totalPrayTimes}=${item.rate}%]")
                             }
 
-                            star4Info.appendLine("4星列表：")
-                            star4Info.appendLine("名称(id)[4星数量/累计抽数=4星出率]")
-                            for (item in apiData.star4Ranking) {
-                                star4Info.appendLine("  ${item.memberName}(${item.memberCode})[${item.count}/${item.totalPrayTimes}=${item.rate}%]")
-                            }
-
-                            group.sendMessage(message.quote() + msgInfo.toString() + star5Info.toString() + star4Info.toString());
+                            group.sendMessage(message.quote() + msgInfo.toString() + star5Info.toString());
                         }
                     }
                 })
