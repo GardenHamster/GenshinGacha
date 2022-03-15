@@ -1,4 +1,4 @@
-package com.hamster.pray.genshin
+package com.hamster.pray.genshin.util
 
 import java.security.SecureRandom
 import java.security.cert.X509Certificate

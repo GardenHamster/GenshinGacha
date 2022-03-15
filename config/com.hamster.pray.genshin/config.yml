@@ -5,6 +5,10 @@ apiUrl: 'http://103.233.255.230:8080'
 #api授权码
 authorzation: theresa3rd
 #指令前缀
+dailyLimit: 10
+overLimitMsg: '今日的抽卡次数已经用完了，明天再来吧~'
+prayCDSeconds: 15
+coolingMsg: '抽卡功能冷却中，{cdSeconds}秒后再来吧~'
 prefix: '#'
 #出现异常是返回的消息
 errorMsg: 出了点小问题，问题不大，请艾特管理员...

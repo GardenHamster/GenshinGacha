@@ -4,7 +4,9 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.hamster.pray.genshin.data.*
 import com.hamster.pray.genshin.util.HttpUtil
+import com.hamster.pray.genshin.util.RxUtils
 import com.hamster.pray.genshin.util.StringUtil
+import io.ktor.client.features.*
 import kotlinx.coroutines.launch
 import net.mamoe.mirai.console.plugin.jvm.JvmPluginDescription
 import net.mamoe.mirai.console.plugin.jvm.KotlinPlugin
@@ -54,8 +56,11 @@ object PluginMain : KotlinPlugin(
     }
 ) {
     override fun onEnable() {
-        logger.info("加载数据....")
+        logger.info("加载配置....")
         Config.reload()
+        logger.info("加载数据....")
+        PrayRecordData.reload()
+        PrayCoolingData.reload()
         logger.info { "Plugin loaded" }
         //配置文件目录 "${dataFolder.absolutePath}/"
         val eventChannel = GlobalEventChannel.parentScope(this)
@@ -70,10 +75,21 @@ object PluginMain : KotlinPlugin(
             builder.addHeader("Content-Type", "application/json")
             builder.addHeader("authorzation", Config.authorzation)
 
-            fun pray(url: String, prayMsg: (prayResult: PrayResult,upItem:String) -> String) {
-                launch {
-                    group.sendMessage(Config.prayingMsg)
+            fun pray(memberCode: String, url: String, prayMsg: (prayResult: PrayResult, upItem: String) -> String) {
+                if (PrayRecordData.isPrayUseUp(sender.id.toString())) {
+                    launch{ group.sendMessage(message.quote() + Config.overLimitMsg) }
+                    return
                 }
+
+                if(PrayCoolingData.isCooling(sender.id.toString())){
+                    launch{ group.sendMessage(message.quote() + Config.coolingMsg.replace("{cdSeconds}",PrayCoolingData.getCoolingSecond(memberCode).toString())) }
+                    return
+                }
+
+                launch {
+                    if(!Config.prayingMsg.isNullOrEmpty()) group.sendMessage(Config.prayingMsg)
+                }
+
                 builder.url(url).get()
                 client.newCall(builder.build()).enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
@@ -104,6 +120,8 @@ object PluginMain : KotlinPlugin(
                                 val imgSavePath = "${imgSaveDir}/${SimpleDateFormat("HHmmSS").format(Date(System.currentTimeMillis()))}.jpg"
                                 val imgMsg = HttpUtil.DownloadPicture(apiData.imgHttpUrl, imgSavePath).uploadAsImage(sender, "jpg")
                                 group.sendMessage(message.quote() + prayMsg(apiData,upItem) + imgMsg);
+                                PrayRecordData.addPrayRecord(sender.id.toString())
+                                PrayCoolingData.setCooling(sender.id.toString())
                             }
                             catch (e:Exception){
                                 group.sendMessage("${Config.errorMsg}，${e.message}")
@@ -304,49 +322,96 @@ object PluginMain : KotlinPlugin(
                     if (pondIndex < 0) pondIndex = 0
                     val url = "${Config.apiUrl}/api/RolePray/PrayOne?memberCode=${sender.id}&memberName=${sender.nick}&pondIndex=${pondIndex}";
                     val dlg = fun(apiData: PrayResult, upItem: String): String {
-                        return "${if (apiData.star5Cost > 0) "本次5星累计消耗${apiData.star5Cost}抽，" else ""}当前卡池为：${upItem}，本次祈愿消耗${apiData.prayCount}个纠缠之缘，距离下次小保底还剩${apiData.role90Surplus}抽，大保底还剩${apiData.role180Surplus}抽".trimIndent()
+                        val warnMsgBuilder = StringBuilder()
+                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
+                        warnMsgBuilder.append("当前卡池为：${upItem}，")
+                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
+                        warnMsgBuilder.append("距离下次小保底还剩${apiData.role90Surplus}抽，")
+                        warnMsgBuilder.append("大保底还剩${apiData.role180Surplus}抽")
+                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${PrayRecordData.getSurplusTimes(sender.id.toString())}次")
+                        if (Config.prayCDSeconds>0)warnMsgBuilder.append(",CD${Config.prayCDSeconds}秒")
+                        return warnMsgBuilder.toString().trimIndent()
                     }
-                    pray(url, dlg)
+                    pray(sender.id.toString(), url, dlg)
                 }
+
                 if (msgContent.startsWith(Config.rolePrayTen)) {
                     val pondIndexstr = StringUtil.splitKeyWord(msgContent, Config.rolePrayTen);
                     var pondIndex = if (pondIndexstr.isNullOrEmpty()) 0 else pondIndexstr.toInt() - 1
                     if (pondIndex < 0) pondIndex = 0
                     val url = "${Config.apiUrl}/api/RolePray/PrayTen?memberCode=${sender.id}&memberName=${sender.nick}&pondIndex=${pondIndex}";
                     val dlg = fun(apiData: PrayResult, upItem: String): String {
-                        return "${if (apiData.star5Cost > 0) "本次5星累计消耗${apiData.star5Cost}抽，" else ""}当前卡池为：${upItem}，本次祈愿消耗${apiData.prayCount}个纠缠之缘，距离下次小保底还剩${apiData.role90Surplus}抽，大保底还剩${apiData.role180Surplus}抽".trimIndent()
+                        val warnMsgBuilder = StringBuilder()
+                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
+                        warnMsgBuilder.append("当前卡池为：${upItem}，")
+                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
+                        warnMsgBuilder.append("距离下次小保底还剩${apiData.role90Surplus}抽，")
+                        warnMsgBuilder.append("大保底还剩${apiData.role180Surplus}抽")
+                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${PrayRecordData.getSurplusTimes(sender.id.toString())}次")
+                        if (Config.prayCDSeconds>0)warnMsgBuilder.append(",CD${Config.prayCDSeconds}秒")
+                        return warnMsgBuilder.toString().trimIndent()
                     }
-                    pray(url, dlg)
+                    pray(sender.id.toString(), url, dlg)
                 }
 
                 if (msgContent.startsWith(Config.armPrayOne)) {
                     val url = "${Config.apiUrl}/api/ArmPray/PrayOne?memberCode=${sender.id}&memberName=${sender.nick}";
                     val dlg = fun(apiData: PrayResult, upItem: String): String {
-                        return "${if (apiData.star5Cost > 0) "本次5星累计消耗${apiData.star5Cost}抽，" else ""}当前卡池为：${upItem}，本次祈愿消耗${apiData.prayCount}个纠缠之缘，距离下次保底还剩${apiData.arm80Surplus}抽，当前命定值为：${apiData.armAssignValue}".trimIndent()
+                        val warnMsgBuilder = StringBuilder()
+                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
+                        warnMsgBuilder.append("当前卡池为：${upItem}，")
+                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
+                        warnMsgBuilder.append("距离下次保底还剩${apiData.arm80Surplus}抽，")
+                        warnMsgBuilder.append("当前命定值为：${apiData.armAssignValue}")
+                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${PrayRecordData.getSurplusTimes(sender.id.toString())}次")
+                        if (Config.prayCDSeconds>0)warnMsgBuilder.append(",CD${Config.prayCDSeconds}秒")
+                        return warnMsgBuilder.toString().trimIndent()
                     }
-                    pray(url, dlg)
+                    pray(sender.id.toString(), url, dlg)
                 }
                 if (msgContent.startsWith(Config.armPrayTen)) {
                     val url = "${Config.apiUrl}/api/ArmPray/PrayTen?memberCode=${sender.id}&memberName=${sender.nick}";
                     val dlg = fun(apiData: PrayResult, upItem: String): String {
-                        return "${if (apiData.star5Cost > 0) "本次5星累计消耗${apiData.star5Cost}抽，" else ""}当前卡池为：${upItem}，本次祈愿消耗${apiData.prayCount}个纠缠之缘，距离下次保底还剩${apiData.arm80Surplus}抽，当前命定值为：${apiData.armAssignValue}".trimIndent()
+                        val warnMsgBuilder = StringBuilder()
+                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
+                        warnMsgBuilder.append("当前卡池为：${upItem}，")
+                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
+                        warnMsgBuilder.append("距离下次保底还剩${apiData.arm80Surplus}抽，")
+                        warnMsgBuilder.append("当前命定值为：${apiData.armAssignValue}")
+                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${PrayRecordData.getSurplusTimes(sender.id.toString())}次")
+                        if (Config.prayCDSeconds>0)warnMsgBuilder.append(",CD${Config.prayCDSeconds}秒")
+                        return warnMsgBuilder.toString().trimIndent()
                     }
-                    pray(url, dlg)
+                    pray(sender.id.toString(), url, dlg)
                 }
 
                 if (msgContent.startsWith(Config.permPrayOne)) {
                     val url = "${Config.apiUrl}/api/PermPray/PrayOne?memberCode=${sender.id}&memberName=${sender.nick}";
                     val dlg = fun(apiData: PrayResult, upItem: String): String {
-                        return "${if (apiData.star5Cost > 0) "本次5星累计消耗${apiData.star5Cost}抽，" else ""}当前卡池为：${upItem}，本次祈愿消耗${apiData.prayCount}个相遇之缘，距离下次保底还剩${apiData.perm90Surplus}抽".trimIndent()
+                        val warnMsgBuilder = StringBuilder()
+                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
+                        warnMsgBuilder.append("当前卡池为：${upItem}，")
+                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个相遇之缘，")
+                        warnMsgBuilder.append("距离下次保底还剩${apiData.perm90Surplus}抽，")
+                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${PrayRecordData.getSurplusTimes(sender.id.toString())}次")
+                        if (Config.prayCDSeconds>0)warnMsgBuilder.append(",CD${Config.prayCDSeconds}秒")
+                        return warnMsgBuilder.toString().trimIndent()
                     }
-                    pray(url, dlg)
+                    pray(sender.id.toString(), url, dlg)
                 }
                 if (msgContent.startsWith(Config.permPrayTen)) {
                     val url = "${Config.apiUrl}/api/PermPray/PrayTen?memberCode=${sender.id}&memberName=${sender.nick}";
                     val dlg = fun(apiData: PrayResult, upItem: String): String {
-                        return "${if (apiData.star5Cost > 0) "本次5星累计消耗${apiData.star5Cost}抽，" else ""}当前卡池为：${upItem}，本次祈愿消耗${apiData.prayCount}个相遇之缘，距离下次保底还剩${apiData.perm90Surplus}抽".trimIndent()
+                        val warnMsgBuilder = StringBuilder()
+                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
+                        warnMsgBuilder.append("当前卡池为：${upItem}，")
+                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个相遇之缘，")
+                        warnMsgBuilder.append("距离下次保底还剩${apiData.perm90Surplus}抽，")
+                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${PrayRecordData.getSurplusTimes(sender.id.toString())}次")
+                        if (Config.prayCDSeconds>0)warnMsgBuilder.append(",CD${Config.prayCDSeconds}秒")
+                        return warnMsgBuilder.toString().trimIndent()
                     }
-                    pray(url, dlg)
+                    pray(sender.id.toString(), url, dlg)
                 }
 
                 if (msgContent.startsWith(Config.assign)) {
@@ -375,8 +440,10 @@ object PluginMain : KotlinPlugin(
                     getLuckRanking(url)
                 }
             } catch (e: Exception) {
+                e.printStackTrace()
                 group.sendMessage(Config.errorMsg);
             } catch (e: Throwable) {
+                e.printStackTrace()
                 group.sendMessage(Config.errorMsg);
             }
         }
