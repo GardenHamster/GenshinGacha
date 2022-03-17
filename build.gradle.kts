@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.hamster.pray.genshin"
-version = "1.0.1"
+version = "1.0.2"
 
 repositories {
     mavenLocal()

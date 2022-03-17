@@ -45,7 +45,7 @@ object PluginMain : KotlinPlugin(
     JvmPluginDescription(
         id = "com.hamster.pray.genshin",
         name = "原神模拟抽卡",
-        version = "1.0.1"
+        version = "1.0.2"
     ) {
         author("花园仓鼠")
         info(
