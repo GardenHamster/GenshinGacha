@@ -9,7 +9,7 @@ object Config: AutoSavePluginConfig("config") {
     val authorzation by value<String>("theresa3rd")
     val dailyLimit by value<Int>(0)
     val overLimitMsg by value<String>("今日的抽卡次数已经用完了，明天再来吧~")
-    val prayCDSeconds by value<Int>(0)
+    val prayCDSeconds by value<Int>(30)
     val coolingMsg by value<String>("抽卡功能冷却中，{cdSeconds}秒后再来吧~")
     val prefix by value<String>("#")
     val errorMsg by value<String>("出了点小问题，问题不大，请艾特管理员...")

@@ -60,7 +60,6 @@ object PluginMain : KotlinPlugin(
         Config.reload()
         logger.info("加载数据....")
         PrayRecordData.reload()
-        PrayCoolingData.reload()
         logger.info { "Plugin loaded" }
         //配置文件目录 "${dataFolder.absolutePath}/"
         val eventChannel = GlobalEventChannel.parentScope(this)
@@ -85,6 +84,8 @@ object PluginMain : KotlinPlugin(
                     launch{ group.sendMessage(message.quote() + Config.coolingMsg.replace("{cdSeconds}",PrayCoolingData.getCoolingSecond(memberCode).toString())) }
                     return
                 }
+
+                PrayCoolingData.setCooling(sender.id.toString())
 
                 launch {
                     if(!Config.prayingMsg.isNullOrEmpty()) group.sendMessage(Config.prayingMsg)
@@ -121,7 +122,6 @@ object PluginMain : KotlinPlugin(
                                 val imgMsg = HttpUtil.DownloadPicture(apiData.imgHttpUrl, imgSavePath).uploadAsImage(sender, "jpg")
                                 group.sendMessage(message.quote() + prayMsg(apiData,upItem) + imgMsg);
                                 PrayRecordData.addPrayRecord(sender.id.toString())
-                                PrayCoolingData.setCooling(sender.id.toString())
                             }
                             catch (e:Exception){
                                 group.sendMessage("${Config.errorMsg}，${e.message}")
@@ -318,6 +318,10 @@ object PluginMain : KotlinPlugin(
 
                 if (msgContent.startsWith(Config.rolePrayOne)) {
                     val pondIndexstr = StringUtil.splitKeyWord(msgContent, Config.rolePrayOne);
+                    if (pondIndexstr.isNullOrEmpty() == false && pondIndexstr?.toIntOrNull() == null) {
+                        group.sendMessage(message.quote() + "指定的蛋池编号无效")
+                        return@subscribeAlways
+                    }
                     var pondIndex = if (pondIndexstr.isNullOrEmpty()) 0 else pondIndexstr.toInt() - 1
                     if (pondIndex < 0) pondIndex = 0
                     val url = "${Config.apiUrl}/api/RolePray/PrayOne?memberCode=${sender.id}&memberName=${sender.nick}&pondIndex=${pondIndex}";
@@ -328,8 +332,10 @@ object PluginMain : KotlinPlugin(
                         warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
                         warnMsgBuilder.append("距离下次小保底还剩${apiData.role90Surplus}抽，")
                         warnMsgBuilder.append("大保底还剩${apiData.role180Surplus}抽")
-                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${PrayRecordData.getSurplusTimes(sender.id.toString())}次")
-                        if (Config.prayCDSeconds>0)warnMsgBuilder.append(",CD${Config.prayCDSeconds}秒")
+                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
+                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
+                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
+                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
                         return warnMsgBuilder.toString().trimIndent()
                     }
                     pray(sender.id.toString(), url, dlg)
@@ -337,6 +343,10 @@ object PluginMain : KotlinPlugin(
 
                 if (msgContent.startsWith(Config.rolePrayTen)) {
                     val pondIndexstr = StringUtil.splitKeyWord(msgContent, Config.rolePrayTen);
+                    if (pondIndexstr.isNullOrEmpty() == false && pondIndexstr?.toIntOrNull() == null) {
+                        group.sendMessage(message.quote() + "指定的蛋池编号无效")
+                        return@subscribeAlways
+                    }
                     var pondIndex = if (pondIndexstr.isNullOrEmpty()) 0 else pondIndexstr.toInt() - 1
                     if (pondIndex < 0) pondIndex = 0
                     val url = "${Config.apiUrl}/api/RolePray/PrayTen?memberCode=${sender.id}&memberName=${sender.nick}&pondIndex=${pondIndex}";
@@ -347,8 +357,10 @@ object PluginMain : KotlinPlugin(
                         warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
                         warnMsgBuilder.append("距离下次小保底还剩${apiData.role90Surplus}抽，")
                         warnMsgBuilder.append("大保底还剩${apiData.role180Surplus}抽")
-                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${PrayRecordData.getSurplusTimes(sender.id.toString())}次")
-                        if (Config.prayCDSeconds>0)warnMsgBuilder.append(",CD${Config.prayCDSeconds}秒")
+                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
+                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
+                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
+                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
                         return warnMsgBuilder.toString().trimIndent()
                     }
                     pray(sender.id.toString(), url, dlg)
@@ -363,8 +375,10 @@ object PluginMain : KotlinPlugin(
                         warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
                         warnMsgBuilder.append("距离下次保底还剩${apiData.arm80Surplus}抽，")
                         warnMsgBuilder.append("当前命定值为：${apiData.armAssignValue}")
-                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${PrayRecordData.getSurplusTimes(sender.id.toString())}次")
-                        if (Config.prayCDSeconds>0)warnMsgBuilder.append(",CD${Config.prayCDSeconds}秒")
+                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
+                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
+                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
+                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
                         return warnMsgBuilder.toString().trimIndent()
                     }
                     pray(sender.id.toString(), url, dlg)
@@ -378,8 +392,10 @@ object PluginMain : KotlinPlugin(
                         warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
                         warnMsgBuilder.append("距离下次保底还剩${apiData.arm80Surplus}抽，")
                         warnMsgBuilder.append("当前命定值为：${apiData.armAssignValue}")
-                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${PrayRecordData.getSurplusTimes(sender.id.toString())}次")
-                        if (Config.prayCDSeconds>0)warnMsgBuilder.append(",CD${Config.prayCDSeconds}秒")
+                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
+                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
+                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
+                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
                         return warnMsgBuilder.toString().trimIndent()
                     }
                     pray(sender.id.toString(), url, dlg)
@@ -393,8 +409,10 @@ object PluginMain : KotlinPlugin(
                         warnMsgBuilder.append("当前卡池为：${upItem}，")
                         warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个相遇之缘，")
                         warnMsgBuilder.append("距离下次保底还剩${apiData.perm90Surplus}抽，")
-                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${PrayRecordData.getSurplusTimes(sender.id.toString())}次")
-                        if (Config.prayCDSeconds>0)warnMsgBuilder.append(",CD${Config.prayCDSeconds}秒")
+                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
+                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
+                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
+                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
                         return warnMsgBuilder.toString().trimIndent()
                     }
                     pray(sender.id.toString(), url, dlg)
@@ -407,8 +425,10 @@ object PluginMain : KotlinPlugin(
                         warnMsgBuilder.append("当前卡池为：${upItem}，")
                         warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个相遇之缘，")
                         warnMsgBuilder.append("距离下次保底还剩${apiData.perm90Surplus}抽，")
-                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${PrayRecordData.getSurplusTimes(sender.id.toString())}次")
-                        if (Config.prayCDSeconds>0)warnMsgBuilder.append(",CD${Config.prayCDSeconds}秒")
+                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
+                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
+                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
+                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
                         return warnMsgBuilder.toString().trimIndent()
                     }
                     pray(sender.id.toString(), url, dlg)

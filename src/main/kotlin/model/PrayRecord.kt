@@ -4,8 +4,14 @@ import com.hamster.pray.genshin.data.PondIndex
 import kotlinx.serialization.Serializable
 import java.util.*
 
+@Serializable
+class PrayRecord() {
+    var memberCode: String = ""
+    var createTime: Long = Date().time
 
-class PrayRecord constructor(memberCode: String, createTime: Long = Date().time) {
-    val memberCode = memberCode
-    val createTime = createTime
+    constructor(memberCode: String) : this() {
+        this.memberCode = memberCode
+        this.createTime = Date().time
+    }
+
 }
