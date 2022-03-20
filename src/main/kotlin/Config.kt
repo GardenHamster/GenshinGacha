@@ -5,7 +5,8 @@ import net.mamoe.mirai.console.data.value
 
 object Config: AutoSavePluginConfig("config") {
     val enabled_group:MutableList<Long> by value(mutableListOf())
-    val apiUrl by value<String>("http://103.233.255.230:8080")
+    val super_manager:MutableList<Long> by value(mutableListOf())
+    val apiUrl by value<String>("https://www.theresa3rd.cn:8080")
     val authorzation by value<String>("theresa3rd")
     val dailyLimit by value<Int>(0)
     val overLimitMsg by value<String>("今日的抽卡次数已经用完了，明天再来吧~")
@@ -25,4 +26,9 @@ object Config: AutoSavePluginConfig("config") {
     val getPrayDetail by value<String>("祈愿详情")
     val getPrayRecords by value<String>("祈愿记录")
     val getLuckRanking by value<String>("欧气排行")
+    val setRolePond by value<String>("设定角色池")
+    val setArmPond by value<String>("设定武器池")
+    val resetRolePond by value<String>("重置角色池")
+    val resetArmPond by value<String>("重置武器池")
+    val setSkinRate by value<String>("服装概率")
 }

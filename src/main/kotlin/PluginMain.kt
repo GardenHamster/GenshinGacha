@@ -1,12 +1,12 @@
 package com.hamster.pray.genshin
 
 import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 import com.hamster.pray.genshin.data.*
 import com.hamster.pray.genshin.util.HttpUtil
 import com.hamster.pray.genshin.util.RxUtils
 import com.hamster.pray.genshin.util.StringUtil
-import io.ktor.client.features.*
 import kotlinx.coroutines.launch
 import net.mamoe.mirai.console.plugin.jvm.JvmPluginDescription
 import net.mamoe.mirai.console.plugin.jvm.KotlinPlugin
@@ -19,6 +19,8 @@ import net.mamoe.mirai.message.data.MessageSource.Key.quote
 import net.mamoe.mirai.utils.ExternalResource.Companion.uploadAsImage
 import net.mamoe.mirai.utils.info
 import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
@@ -45,7 +47,7 @@ object PluginMain : KotlinPlugin(
     JvmPluginDescription(
         id = "com.hamster.pray.genshin",
         name = "原神模拟抽卡",
-        version = "1.0.2"
+        version = "1.1.0"
     ) {
         author("花园仓鼠")
         info(
@@ -69,6 +71,7 @@ object PluginMain : KotlinPlugin(
             .hostnameVerifier(RxUtils.TrustAllHostnameVerifier())
             .sslSocketFactory(RxUtils().createSSLSocketFactory(), RxUtils.TrustAllCerts())
             .build()
+            val JSON: MediaType = "application/json".toMediaType()
 
             var builder = Request.Builder()
             builder.addHeader("Content-Type", "application/json")
@@ -311,13 +314,200 @@ object PluginMain : KotlinPlugin(
                 })
             }
 
+            fun setRolePond(url: String, pondIndex: Int, upItems: Array<String>) {
+                var params: MutableMap<String, Any> = mutableMapOf<String, Any>()
+                params.set("pondIndex", pondIndex)
+                params.set("upItems",upItems)
+
+                val jsonStr = GsonBuilder().create().toJson(params)
+                val contentType: MediaType = "application/json; charset=utf-8".toMediaType()
+                val requestBody = jsonStr.toRequestBody(contentType)
+
+                builder.url(url).post(requestBody)
+                client.newCall(builder.build()).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        launch {
+                            group.sendMessage("${Config.errorMsg}，接口异常了")
+                        }
+                    }
+
+                    override fun onResponse(call: Call, response: Response) {
+                        launch {
+                            val type = object : TypeToken<ApiResult<Any>>() {}.type
+                            val apiResult = Gson().fromJson<ApiResult<Any>>(response.body!!.string(), type)
+                            if (apiResult.code != 0) {
+                                group.sendMessage("${Config.errorMsg}，接口返回code：${apiResult.code}，接口返回message：${apiResult.message}")
+                                return@launch
+                            }
+                            group.sendMessage(message.quote() + "配置成功!");
+                        }
+                    }
+                })
+            }
+
+            fun setArmPond(url: String, upItems: Array<String>) {
+                var params: MutableMap<String, Any> = mutableMapOf<String, Any>()
+                params.set("upItems",upItems)
+
+                val jsonStr = GsonBuilder().create().toJson(params)
+                val contentType: MediaType = "application/json; charset=utf-8".toMediaType()
+                val requestBody = jsonStr.toRequestBody(contentType)
+
+                builder.url(url).post(requestBody)
+                client.newCall(builder.build()).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        launch {
+                            group.sendMessage("${Config.errorMsg}，接口异常了")
+                        }
+                    }
+
+                    override fun onResponse(call: Call, response: Response) {
+                        launch {
+                            val type = object : TypeToken<ApiResult<Any>>() {}.type
+                            val apiResult = Gson().fromJson<ApiResult<Any>>(response.body!!.string(), type)
+                            if (apiResult.code != 0) {
+                                group.sendMessage("${Config.errorMsg}，接口返回code：${apiResult.code}，接口返回message：${apiResult.message}")
+                                return@launch
+                            }
+                            group.sendMessage(message.quote() + "配置成功!");
+                        }
+                    }
+                })
+            }
+
+            fun resetPond(url: String) {
+                var params: MutableMap<String, Any> = mutableMapOf<String, Any>()
+                val jsonStr = GsonBuilder().create().toJson(params)
+                val contentType: MediaType = "application/json; charset=utf-8".toMediaType()
+                val requestBody = jsonStr.toRequestBody(contentType)
+
+                builder.url(url).post(requestBody)
+                client.newCall(builder.build()).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        launch {
+                            group.sendMessage("${Config.errorMsg}，接口异常了")
+                        }
+                    }
+
+                    override fun onResponse(call: Call, response: Response) {
+                        launch {
+                            val type = object : TypeToken<ApiResult<Any>>() {}.type
+                            val apiResult = Gson().fromJson<ApiResult<Any>>(response.body!!.string(), type)
+                            if (apiResult.code != 0) {
+                                group.sendMessage("${Config.errorMsg}，接口返回code：${apiResult.code}，接口返回message：${apiResult.message}")
+                                return@launch
+                            }
+                            group.sendMessage(message.quote() + "重置成功!");
+                        }
+                    }
+                })
+            }
+
+            fun setSkinRate(url: String) {
+                var params: MutableMap<String, Any> = mutableMapOf<String, Any>()
+                val jsonStr = GsonBuilder().create().toJson(params)
+                val contentType: MediaType = "application/json; charset=utf-8".toMediaType()
+                val requestBody = jsonStr.toRequestBody(contentType)
+
+                builder.url(url).post(requestBody)
+                client.newCall(builder.build()).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        launch {
+                            group.sendMessage("${Config.errorMsg}，接口异常了")
+                        }
+                    }
+
+                    override fun onResponse(call: Call, response: Response) {
+                        launch {
+                            val type = object : TypeToken<ApiResult<Any>>() {}.type
+                            val apiResult = Gson().fromJson<ApiResult<Any>>(response.body!!.string(), type)
+                            if (apiResult.code != 0) {
+                                group.sendMessage("${Config.errorMsg}，接口返回code：${apiResult.code}，接口返回message：${apiResult.message}")
+                                return@launch
+                            }
+                            group.sendMessage(message.quote() + "设置成功!");
+                        }
+                    }
+                })
+            }
+
+
+
             try {
                 if (group.id !in Config.enabled_group) return@subscribeAlways
                 if (!message.contentToString().startsWith(Config.prefix)) return@subscribeAlways
                 val msgContent = message.contentToString().removePrefix(Config.prefix)
 
+                if (msgContent.startsWith(Config.setRolePond)) {
+                    if (sender.id !in Config.super_manager) return@subscribeAlways
+                    val paramStr = StringUtil.splitKeyWord(msgContent, Config.setRolePond)
+                    var paramArr = paramStr?.trim()?.split("[,， ]+".toRegex())?.dropLastWhile { it.isEmpty() }?.toTypedArray()
+                    if (paramArr == null) {
+                        group.sendMessage(message.quote() + "格式错误，请参考格式：#设定角色池[编号(1~10,或者可以不指定)] 雷电将军，五郎，云堇，香菱")
+                        return@subscribeAlways
+                    }
+                    var pondIndex = paramArr[0]?.toIntOrNull()
+                    if (pondIndex != null) paramArr = paramArr.copyOfRange(1, paramArr.count())
+                    if (paramArr.count() != 4) {
+                        group.sendMessage(message.quote() + "必须指定1个五星和3个四星角色")
+                        return@subscribeAlways
+                    }
+                    if (pondIndex == null) pondIndex = 0
+                    if (pondIndex < 0 || pondIndex > 10) {
+                        group.sendMessage(message.quote() + "蛋池编号只能设定在1~10之间")
+                        return@subscribeAlways
+                    }
+                    pondIndex = if (pondIndex - 1 < 0) 0 else pondIndex - 1
+                    val url = "${Config.apiUrl}/api/PrayInfo/SetRolePond"
+                    setRolePond(url, pondIndex, paramArr)
+                }
+
+                if (msgContent.startsWith(Config.setArmPond)) {
+                    if (sender.id !in Config.super_manager) return@subscribeAlways
+                    val paramStr = StringUtil.splitKeyWord(msgContent, Config.setArmPond)
+                    var paramArr = paramStr?.trim()?.split("[,， ]+".toRegex())?.dropLastWhile { it.isEmpty() }?.toTypedArray()
+                    if (paramArr == null) {
+                        group.sendMessage(message.quote() + "格式错误，请参考格式：#设定武器池 薙草之稻光 不灭月华 恶王丸 曚云之月 匣里龙吟 西风长枪 祭礼残章")
+                        return@subscribeAlways
+                    }
+                    if (paramArr.count() != 7) {
+                        group.sendMessage(message.quote() + "必须指定2件五星和5件四星武器")
+                        return@subscribeAlways
+                    }
+                    val url = "${Config.apiUrl}/api/PrayInfo/SetArmPond"
+                    setArmPond(url, paramArr)
+                }
+
+                if (msgContent.startsWith(Config.resetRolePond)) {
+                    if (sender.id !in Config.super_manager) return@subscribeAlways
+                    val url = "${Config.apiUrl}/api/PrayInfo/ResetRolePond"
+                    resetPond(url)
+                }
+
+                if (msgContent.startsWith(Config.resetArmPond)) {
+                    if (sender.id !in Config.super_manager) return@subscribeAlways
+                    val url = "${Config.apiUrl}/api/PrayInfo/ResetArmPond";
+                    resetPond(url)
+                }
+
+                if (msgContent.startsWith(Config.setSkinRate)) {
+                    if (sender.id !in Config.super_manager) return@subscribeAlways
+                    val skinRateStr = StringUtil.splitKeyWord(msgContent, Config.setSkinRate)
+                    if (skinRateStr?.toIntOrNull() == null) {
+                        group.sendMessage(message.quote() + "概率必须在0~100之间")
+                        return@subscribeAlways
+                    }
+                    val skinRate = skinRateStr.toInt()
+                    if (skinRate < 0 || skinRate > 100) {
+                        group.sendMessage(message.quote() + "概率必须在0~100之间")
+                        return@subscribeAlways
+                    }
+                    val url = "${Config.apiUrl}/api/PrayInfo/SetSkinRate?rare=${skinRate}"
+                    setSkinRate(url)
+                }
+
                 if (msgContent.startsWith(Config.rolePrayOne)) {
-                    val pondIndexstr = StringUtil.splitKeyWord(msgContent, Config.rolePrayOne);
+                    val pondIndexstr = StringUtil.splitKeyWord(msgContent, Config.rolePrayOne)
                     if (pondIndexstr.isNullOrEmpty() == false && pondIndexstr?.toIntOrNull() == null) {
                         group.sendMessage(message.quote() + "指定的蛋池编号无效")
                         return@subscribeAlways

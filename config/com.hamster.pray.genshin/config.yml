@@ -1,8 +1,10 @@
-#可用群
-enabled_group: [284196625]
+#可用群号
+enabled_group: [12345,56789]
+#管理员QQ，可以使用管理员指令
+super_manager: [123456,567890]
 #api地址:端口
-apiUrl: 'http://103.233.255.230:8080'
-#api授权码
+apiUrl: 'https://www.theresa3rd.cn:8080'
+#api授权码，需要自定义蛋池等功能需要另外申请授权码
 authorzation: theresa3rd
 #每人每日最大限制次数，0表示无限制
 dailyLimit: 0
@@ -18,7 +20,7 @@ prefix: '#'
 errorMsg: 出了点小问题，问题不大，请艾特管理员...
 #开始处理前返回的消息
 prayingMsg: 正在拉取结果...
-#下面都是一些功能指令
+#下面是一些功能指令
 rolePrayOne: 角色单抽
 rolePrayTen: 角色十连
 armPrayOne: 武器单抽
@@ -30,3 +32,9 @@ getPondInfo: 蛋池
 getPrayDetail: 祈愿详情
 getPrayRecords: 祈愿记录
 getLuckRanking: 欧气排行
+#下面是一些管理员指令
+setRolePond: 设定角色池
+setArmPond: 设定武器池
+resetRolePond: 重置角色池
+resetArmPond: 重置武器池
+setSkinRate: 服装概率
