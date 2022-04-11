@@ -17,7 +17,7 @@ object Config: AutoSavePluginConfig("config") {
     val prayingMsg by value<String>("正在拉取结果...")
     val menu: MutableList<String> by value(mutableListOf("菜单", "功能", "祈愿", "抽卡", "扭蛋", "十连", "单抽", "武器", "角色"))
     val menuMsg by value<String>("目前可用的抽卡指令有：\r\n" +
-        "角色单抽[编号1~10]，角色十连[编号1~10]，武器单抽，武器十连，常驻单抽，常驻十连，全角单抽[编号1~10]，全角十连[编号1~10]，全武单抽，全武十连，定轨\r\n" +
+        "角色单抽[编号1~10]，角色十连[编号1~10]，武器单抽，武器十连，常驻单抽，常驻十连，全角单抽，全角十连，全武单抽，全武十连，定轨\r\n" +
         "目前可用的查询指令有：\r\n" +
         "蛋池，祈愿详情，祈愿记录，欧气排行\r\n" +
         "目前可用的管理员指令有：\r\n" +
