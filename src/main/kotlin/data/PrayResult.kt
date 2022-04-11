@@ -10,6 +10,8 @@ data class PrayResult(
     val arm80Surplus: Int,
     val armAssignValue: Int,
     val perm90Surplus: Int,
+    val fullRole90Surplus: Int,
+    val fullArm80Surplus: Int,
     val surplus10: Int,
     val star5Cost: Int,
     val apiDailyCallSurplus: Int,

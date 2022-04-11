@@ -47,7 +47,7 @@ object PluginMain : KotlinPlugin(
     JvmPluginDescription(
         id = "com.hamster.pray.genshin",
         name = "原神模拟抽卡",
-        version = "1.1.0"
+        version = "1.2.0"
     ) {
         author("花园仓鼠")
         info(
@@ -431,7 +431,11 @@ object PluginMain : KotlinPlugin(
                 })
             }
 
-
+            fun sendMenuMsg() {
+                launch {
+                    group.sendMessage(message.quote() + Config.menuMsg);
+                }
+            }
 
             try {
                 if (group.id !in Config.enabled_group) return@subscribeAlways
@@ -439,7 +443,10 @@ object PluginMain : KotlinPlugin(
                 val msgContent = message.contentToString().removePrefix(Config.prefix)
 
                 if (msgContent.startsWith(Config.setRolePond)) {
-                    if (sender.id !in Config.super_manager) return@subscribeAlways
+                    if (sender.id !in Config.super_manager){
+                        group.sendMessage(message.quote() + "该指令需要管理员执行")
+                        return@subscribeAlways
+                    }
                     val paramStr = StringUtil.splitKeyWord(msgContent, Config.setRolePond)
                     var paramArr = paramStr?.trim()?.split("[,， ]+".toRegex())?.dropLastWhile { it.isEmpty() }?.toTypedArray()
                     if (paramArr == null) {
@@ -460,10 +467,14 @@ object PluginMain : KotlinPlugin(
                     pondIndex = if (pondIndex - 1 < 0) 0 else pondIndex - 1
                     val url = "${Config.apiUrl}/api/PrayInfo/SetRolePond"
                     setRolePond(url, pondIndex, paramArr)
+                    return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.setArmPond)) {
-                    if (sender.id !in Config.super_manager) return@subscribeAlways
+                    if (sender.id !in Config.super_manager){
+                        group.sendMessage(message.quote() + "该指令需要管理员执行")
+                        return@subscribeAlways
+                    }
                     val paramStr = StringUtil.splitKeyWord(msgContent, Config.setArmPond)
                     var paramArr = paramStr?.trim()?.split("[,， ]+".toRegex())?.dropLastWhile { it.isEmpty() }?.toTypedArray()
                     if (paramArr == null) {
@@ -476,22 +487,34 @@ object PluginMain : KotlinPlugin(
                     }
                     val url = "${Config.apiUrl}/api/PrayInfo/SetArmPond"
                     setArmPond(url, paramArr)
+                    return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.resetRolePond)) {
-                    if (sender.id !in Config.super_manager) return@subscribeAlways
+                    if (sender.id !in Config.super_manager){
+                        group.sendMessage(message.quote() + "该指令需要管理员执行")
+                        return@subscribeAlways
+                    }
                     val url = "${Config.apiUrl}/api/PrayInfo/ResetRolePond"
                     resetPond(url)
+                    return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.resetArmPond)) {
-                    if (sender.id !in Config.super_manager) return@subscribeAlways
+                    if (sender.id !in Config.super_manager){
+                        group.sendMessage(message.quote() + "该指令需要管理员执行")
+                        return@subscribeAlways
+                    }
                     val url = "${Config.apiUrl}/api/PrayInfo/ResetArmPond";
                     resetPond(url)
+                    return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.setSkinRate)) {
-                    if (sender.id !in Config.super_manager) return@subscribeAlways
+                    if (sender.id !in Config.super_manager){
+                        group.sendMessage(message.quote() + "该指令需要管理员执行")
+                        return@subscribeAlways
+                    }
                     val skinRateStr = StringUtil.splitKeyWord(msgContent, Config.setSkinRate)
                     if (skinRateStr?.toIntOrNull() == null) {
                         group.sendMessage(message.quote() + "概率必须在0~100之间")
@@ -504,6 +527,7 @@ object PluginMain : KotlinPlugin(
                     }
                     val url = "${Config.apiUrl}/api/PrayInfo/SetSkinRate?rare=${skinRate}"
                     setSkinRate(url)
+                    return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.rolePrayOne)) {
@@ -529,6 +553,7 @@ object PluginMain : KotlinPlugin(
                         return warnMsgBuilder.toString().trimIndent()
                     }
                     pray(sender.id.toString(), url, dlg)
+                    return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.rolePrayTen)) {
@@ -554,6 +579,7 @@ object PluginMain : KotlinPlugin(
                         return warnMsgBuilder.toString().trimIndent()
                     }
                     pray(sender.id.toString(), url, dlg)
+                    return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.armPrayOne)) {
@@ -572,6 +598,7 @@ object PluginMain : KotlinPlugin(
                         return warnMsgBuilder.toString().trimIndent()
                     }
                     pray(sender.id.toString(), url, dlg)
+                    return@subscribeAlways
                 }
                 if (msgContent.startsWith(Config.armPrayTen)) {
                     val url = "${Config.apiUrl}/api/ArmPray/PrayTen?memberCode=${sender.id}&memberName=${sender.nick}";
@@ -589,6 +616,7 @@ object PluginMain : KotlinPlugin(
                         return warnMsgBuilder.toString().trimIndent()
                     }
                     pray(sender.id.toString(), url, dlg)
+                    return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.permPrayOne)) {
@@ -606,6 +634,7 @@ object PluginMain : KotlinPlugin(
                         return warnMsgBuilder.toString().trimIndent()
                     }
                     pray(sender.id.toString(), url, dlg)
+                    return@subscribeAlways
                 }
                 if (msgContent.startsWith(Config.permPrayTen)) {
                     val url = "${Config.apiUrl}/api/PermPray/PrayTen?memberCode=${sender.id}&memberName=${sender.nick}";
@@ -622,33 +651,120 @@ object PluginMain : KotlinPlugin(
                         return warnMsgBuilder.toString().trimIndent()
                     }
                     pray(sender.id.toString(), url, dlg)
+                    return@subscribeAlways
+                }
+
+                if (msgContent.startsWith(Config.fullRolePrayOne)) {
+                    val url = "${Config.apiUrl}/api/FullRolePray/PrayOne?memberCode=${sender.id}&memberName=${sender.nick}";
+                    val dlg = fun(apiData: PrayResult, upItem: String): String {
+                        val warnMsgBuilder = StringBuilder()
+                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
+                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
+                        warnMsgBuilder.append("距离下次保底还剩${apiData.fullRole90Surplus}抽")
+                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
+                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
+                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
+                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
+                        return warnMsgBuilder.toString().trimIndent()
+                    }
+                    pray(sender.id.toString(), url, dlg)
+                    return@subscribeAlways
+                }
+
+                if (msgContent.startsWith(Config.fullRolePrayTen)) {
+                    val url = "${Config.apiUrl}/api/FullRolePray/PrayTen?memberCode=${sender.id}&memberName=${sender.nick}";
+                    val dlg = fun(apiData: PrayResult, upItem: String): String {
+                        val warnMsgBuilder = StringBuilder()
+                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
+                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
+                        warnMsgBuilder.append("距离下次保底还剩${apiData.fullRole90Surplus}抽")
+                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
+                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
+                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
+                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
+                        return warnMsgBuilder.toString().trimIndent()
+                    }
+                    pray(sender.id.toString(), url, dlg)
+                    return@subscribeAlways
+                }
+
+                if (msgContent.startsWith(Config.fullArmPrayOne)) {
+                    val url = "${Config.apiUrl}/api/FullArmPray/PrayOne?memberCode=${sender.id}&memberName=${sender.nick}";
+                    val dlg = fun(apiData: PrayResult, upItem: String): String {
+                        val warnMsgBuilder = StringBuilder()
+                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
+                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
+                        warnMsgBuilder.append("距离下次保底还剩${apiData.fullArm80Surplus}抽")
+                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
+                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
+                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
+                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
+                        return warnMsgBuilder.toString().trimIndent()
+                    }
+                    pray(sender.id.toString(), url, dlg)
+                    return@subscribeAlways
+                }
+                if (msgContent.startsWith(Config.fullArmPrayTen)) {
+                    val url = "${Config.apiUrl}/api/FullArmPray/PrayTen?memberCode=${sender.id}&memberName=${sender.nick}";
+                    val dlg = fun(apiData: PrayResult, upItem: String): String {
+                        val warnMsgBuilder = StringBuilder()
+                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
+                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
+                        warnMsgBuilder.append("距离下次保底还剩${apiData.fullArm80Surplus}抽")
+                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
+                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
+                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
+                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
+                        return warnMsgBuilder.toString().trimIndent()
+                    }
+                    pray(sender.id.toString(), url, dlg)
+                    return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.assign)) {
                     val goodsName = StringUtil.splitKeyWord(msgContent, Config.assign);
-                    val url = "${Config.apiUrl}/api/PermPray/PrayTen?memberCode=${sender.id}&memberName=${sender.nick}&goodsName=${goodsName}";
+                    if (goodsName.isNullOrEmpty() || goodsName.isNullOrBlank()) {
+                        group.sendMessage(message.quote() + "格式错误，请参考格式：#定轨薙草之稻光")
+                        return@subscribeAlways
+                    }
+                    val url = "${Config.apiUrl}/api/PrayInfo/SetMemberAssign?memberCode=${sender.id}&memberName=${sender.nick}&goodsName=${goodsName}";
                     assign(url)
+                    return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.getPondInfo)) {
                     val url = "${Config.apiUrl}/api/PrayInfo/GetPondInfo";
                     getPondInfo(url)
+                    return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.getPrayDetail)) {
                     val url = "${Config.apiUrl}/api/PrayInfo/GetMemberPrayDetail?memberCode=${sender.id}";
                     getPrayDetail(url)
+                    return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.getPrayRecords)) {
                     val url = "${Config.apiUrl}/api/PrayInfo/GetMemberPrayRecords?memberCode=${sender.id}";
                     getPrayRecord(url)
+                    return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.getLuckRanking)) {
                     val url = "${Config.apiUrl}/api/PrayInfo/GetLuckRanking";
                     getLuckRanking(url)
+                    return@subscribeAlways
                 }
+
+                if (Config.menu != null && Config.menu.count() > 0) {
+                    for (item in Config.menu) {
+                        if (msgContent.contains(item)) {
+                            sendMenuMsg()
+                            return@subscribeAlways
+                        }
+                    }
+                }
+
             } catch (e: Exception) {
                 e.printStackTrace()
                 group.sendMessage(Config.errorMsg);
