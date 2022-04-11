@@ -20,6 +20,10 @@ prefix: '#'
 errorMsg: 出了点小问题，问题不大，请艾特管理员...
 #开始处理前返回的消息
 prayingMsg: 正在拉取结果...
+#菜单指令，如果发送了错误的指令并且指令中包含以下内容，将会返回menuMsg中的消息
+menu: ["菜单", "功能", "祈愿", "抽卡", "扭蛋", "十连", "单抽", "武器", "角色"]
+#菜单提示消息
+menuMsg: "目前可用的抽卡指令有：\r\n角色单抽[编号1~10]，角色十连[编号1~10]，武器单抽，武器十连，常驻单抽，常驻十连，全角单抽[编号1~10]，全角十连[编号1~10]，全武单抽，全武十连，定轨\r\n目前可用的查询指令有：\r\n蛋池，祈愿详情，祈愿记录，欧气排行\r\n目前可用的管理员指令有：\r\n设定角色池，设定武器池，重置角色池，重置武器池，服装概率"
 #下面是一些功能指令
 rolePrayOne: 角色单抽
 rolePrayTen: 角色十连
@@ -27,6 +31,10 @@ armPrayOne: 武器单抽
 armPrayTen: 武器十连
 permPrayOne: 常驻单抽
 permPrayTen: 常驻十连
+fullRolePrayOne: 全角单抽
+fullRolePrayTen: 全角十连
+fullArmPrayOne: 全武单抽
+fullArmPrayTen: 全武十连
 assign: 定轨
 getPondInfo: 蛋池
 getPrayDetail: 祈愿详情
