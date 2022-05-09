@@ -16,6 +16,7 @@ import net.mamoe.mirai.event.events.FriendMessageEvent
 import net.mamoe.mirai.event.events.GroupMessageEvent
 import net.mamoe.mirai.event.events.NewFriendRequestEvent
 import net.mamoe.mirai.message.data.MessageSource.Key.quote
+import net.mamoe.mirai.message.data.content
 import net.mamoe.mirai.utils.ExternalResource.Companion.uploadAsImage
 import net.mamoe.mirai.utils.info
 import okhttp3.*
@@ -439,8 +440,18 @@ object PluginMain : KotlinPlugin(
 
             try {
                 if (group.id !in Config.enabled_group) return@subscribeAlways
-                if (!message.contentToString().startsWith(Config.prefix)) return@subscribeAlways
-                val msgContent = message.contentToString().removePrefix(Config.prefix)
+
+                val atStr = "@${bot.id}"
+                val contentStr = message.contentToString()
+
+                var msgContent = ""
+                if (contentStr.startsWith(atStr)) {
+                    msgContent = contentStr.removePrefix(atStr).trim()
+                } else if (contentStr.startsWith(Config.prefix)) {
+                    msgContent = contentStr.removePrefix(Config.prefix).trim()
+                }
+
+                if (msgContent.trim().isEmpty()) return@subscribeAlways
 
                 if (msgContent.startsWith(Config.setRolePond)) {
                     if (sender.id !in Config.super_manager){

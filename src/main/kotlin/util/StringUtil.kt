@@ -10,7 +10,7 @@ class StringUtil {
             if (content.isNullOrEmpty()) return null
             val list = content.split(keyWord)
             if (list.count() <= 1) return null
-            return list[1]
+            return list[1].trim()
         }
     }
 }
