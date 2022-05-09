@@ -4,9 +4,12 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 import com.hamster.pray.genshin.data.*
+import com.hamster.pray.genshin.timer.AutoClearTask
+import com.hamster.pray.genshin.util.DateUtil
 import com.hamster.pray.genshin.util.HttpUtil
 import com.hamster.pray.genshin.util.RxUtils
 import com.hamster.pray.genshin.util.StringUtil
+import com.sun.org.apache.xalan.internal.lib.ExsltDatetime.date
 import kotlinx.coroutines.launch
 import net.mamoe.mirai.console.plugin.jvm.JvmPluginDescription
 import net.mamoe.mirai.console.plugin.jvm.KotlinPlugin
@@ -64,6 +67,10 @@ object PluginMain : KotlinPlugin(
         logger.info("加载数据....")
         PrayRecordData.reload()
         logger.info { "Plugin loaded" }
+        val clearTask = AutoClearTask(logger, "${dataFolderPath}/download/")
+        val clearStartDate = DateUtil.getHourStart(4)
+        Timer().schedule(clearTask, clearStartDate, 24 * 60 * 60 * 1000)
+        logger.info { "启动定时清理任务，每天凌晨4点自动清理历史下载图片..." }
         //配置文件目录 "${dataFolder.absolutePath}/"
         val eventChannel = GlobalEventChannel.parentScope(this)
         eventChannel.subscribeAlways<GroupMessageEvent> {
