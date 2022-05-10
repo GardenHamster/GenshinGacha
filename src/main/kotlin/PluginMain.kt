@@ -87,13 +87,21 @@ object PluginMain : KotlinPlugin(
             builder.addHeader("authorzation", Config.authorzation)
 
             fun pray(prayType: String, url: String, prayMsg: (prayResult: PrayResult, upItem: String) -> String) {
-                if (PrayRecordData.isPrayUseUp(sender.id.toString()) && Config.overLimitMsg.isNotBlank()) {
-                    launch { group.sendMessage(message.quote() + Config.overLimitMsg) }
+                if (PrayRecordData.isPrayUseUp(sender.id.toString())) {
+                    launch {
+                        if(Config.overLimitMsg.isNotBlank()){
+                            group.sendMessage(message.quote() + Config.overLimitMsg)
+                        }
+                    }
                     return
                 }
 
-                if(PrayCoolingData.isCooling(sender.id.toString()) && Config.coolingMsg.isNotBlank()){
-                    launch{ group.sendMessage(message.quote() + Config.coolingMsg.replace("{cdSeconds}",PrayCoolingData.getCoolingSecond(sender.id.toString()).toString())) }
+                if(PrayCoolingData.isCooling(sender.id.toString())){
+                    launch{
+                        if(Config.coolingMsg.isNotBlank()){
+                            group.sendMessage(message.quote() + Config.coolingMsg.replace("{cdSeconds}",PrayCoolingData.getCoolingSecond(sender.id.toString()).toString()))
+                        }
+                    }
                     return
                 }
 
