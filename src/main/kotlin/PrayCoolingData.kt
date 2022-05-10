@@ -21,7 +21,7 @@ class PrayCoolingData {
         fun getCoolingSecond(memberCode: String): Int {
             val coolTime = prayCoolingMap[memberCode] ?: return 0
             val seconds = (Date().time - coolTime).toInt() / 1000 + 1
-            val surplusSeconds = Config.prayCDSeconds - seconds
+            val surplusSeconds = Config.getPrayCD() - seconds
             return if (surplusSeconds > 0) surplusSeconds else 0
         }
     }

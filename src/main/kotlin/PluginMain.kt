@@ -13,6 +13,7 @@ import com.sun.org.apache.xalan.internal.lib.ExsltDatetime.date
 import kotlinx.coroutines.launch
 import net.mamoe.mirai.console.plugin.jvm.JvmPluginDescription
 import net.mamoe.mirai.console.plugin.jvm.KotlinPlugin
+import net.mamoe.mirai.contact.nameCardOrNick
 import net.mamoe.mirai.event.GlobalEventChannel
 import net.mamoe.mirai.event.events.BotInvitedJoinGroupRequestEvent
 import net.mamoe.mirai.event.events.FriendMessageEvent
@@ -51,7 +52,7 @@ object PluginMain : KotlinPlugin(
     JvmPluginDescription(
         id = "com.hamster.pray.genshin",
         name = "原神模拟抽卡",
-        version = "1.2.0"
+        version = "1.2.1"
     ) {
         author("花园仓鼠")
         info(
@@ -85,21 +86,21 @@ object PluginMain : KotlinPlugin(
             builder.addHeader("Content-Type", "application/json")
             builder.addHeader("authorzation", Config.authorzation)
 
-            fun pray(memberCode: String, url: String, prayMsg: (prayResult: PrayResult, upItem: String) -> String) {
-                if (PrayRecordData.isPrayUseUp(sender.id.toString())) {
-                    launch{ group.sendMessage(message.quote() + Config.overLimitMsg) }
+            fun pray(prayType: String, url: String, prayMsg: (prayResult: PrayResult, upItem: String) -> String) {
+                if (PrayRecordData.isPrayUseUp(sender.id.toString()) && Config.overLimitMsg.isNotBlank()) {
+                    launch { group.sendMessage(message.quote() + Config.overLimitMsg) }
                     return
                 }
 
-                if(PrayCoolingData.isCooling(sender.id.toString())){
-                    launch{ group.sendMessage(message.quote() + Config.coolingMsg.replace("{cdSeconds}",PrayCoolingData.getCoolingSecond(memberCode).toString())) }
+                if(PrayCoolingData.isCooling(sender.id.toString()) && Config.coolingMsg.isNotBlank()){
+                    launch{ group.sendMessage(message.quote() + Config.coolingMsg.replace("{cdSeconds}",PrayCoolingData.getCoolingSecond(sender.id.toString()).toString())) }
                     return
                 }
 
                 PrayCoolingData.setCooling(sender.id.toString())
 
                 launch {
-                    if(!Config.prayingMsg.isNullOrEmpty()) group.sendMessage(Config.prayingMsg)
+                    if(Config.prayingMsg.isNotBlank()) group.sendMessage(Config.prayingMsg)
                 }
 
                 builder.url(url).get()
@@ -132,6 +133,22 @@ object PluginMain : KotlinPlugin(
                                 val imgSavePath = "${imgSaveDir}/${SimpleDateFormat("HHmmSS").format(Date(System.currentTimeMillis()))}.jpg"
                                 val imgMsg = HttpUtil.DownloadPicture(apiData.imgHttpUrl, imgSavePath).uploadAsImage(sender, "jpg")
                                 group.sendMessage(message.quote() + prayMsg(apiData,upItem) + imgMsg);
+
+                                if (apiData.star5Goods.count() > 0 && Config.goldMsg.isNotBlank()) {
+                                    var star5Item = "";
+                                    for (item in apiData.star5Goods) {
+                                        if (star5Item.isNotEmpty()) star5Item += "+"
+                                        star5Item += item.goodsName
+                                    }
+                                    var goldMsg = Config.goldMsg.trim()
+                                    goldMsg = goldMsg.replace("{userName}", sender.nameCardOrNick)
+                                    goldMsg = goldMsg.replace("{prayType}", prayType)
+                                    goldMsg = goldMsg.replace("{goodsName}", star5Item)
+                                    goldMsg = goldMsg.replace("{star5Cost}", apiData.star5Cost.toString())
+                                    Thread.sleep(2 * 1000);
+                                    group.sendMessage(goldMsg)
+                                }
+
                                 PrayRecordData.addPrayRecord(sender.id.toString())
                             }
                             catch (e:Exception){
@@ -567,10 +584,10 @@ object PluginMain : KotlinPlugin(
                         var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
                         surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
                         if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
+                        if (Config.getPrayCD() > 0) warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
                         return warnMsgBuilder.toString().trimIndent()
                     }
-                    pray(sender.id.toString(), url, dlg)
+                    pray(Config.rolePrayOne, url, dlg)
                     return@subscribeAlways
                 }
 
@@ -593,10 +610,10 @@ object PluginMain : KotlinPlugin(
                         var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
                         surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
                         if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
+                        if (Config.getPrayCD()>0)warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
                         return warnMsgBuilder.toString().trimIndent()
                     }
-                    pray(sender.id.toString(), url, dlg)
+                    pray(Config.rolePrayTen, url, dlg)
                     return@subscribeAlways
                 }
 
@@ -612,10 +629,10 @@ object PluginMain : KotlinPlugin(
                         var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
                         surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
                         if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
+                        if (Config.getPrayCD()>0)warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
                         return warnMsgBuilder.toString().trimIndent()
                     }
-                    pray(sender.id.toString(), url, dlg)
+                    pray(Config.armPrayOne, url, dlg)
                     return@subscribeAlways
                 }
                 if (msgContent.startsWith(Config.armPrayTen)) {
@@ -630,10 +647,10 @@ object PluginMain : KotlinPlugin(
                         var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
                         surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
                         if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
+                        if (Config.getPrayCD()>0)warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
                         return warnMsgBuilder.toString().trimIndent()
                     }
-                    pray(sender.id.toString(), url, dlg)
+                    pray(Config.armPrayTen, url, dlg)
                     return@subscribeAlways
                 }
 
@@ -648,10 +665,10 @@ object PluginMain : KotlinPlugin(
                         var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
                         surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
                         if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
+                        if (Config.getPrayCD()>0)warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
                         return warnMsgBuilder.toString().trimIndent()
                     }
-                    pray(sender.id.toString(), url, dlg)
+                    pray(Config.permPrayOne, url, dlg)
                     return@subscribeAlways
                 }
                 if (msgContent.startsWith(Config.permPrayTen)) {
@@ -665,10 +682,10 @@ object PluginMain : KotlinPlugin(
                         var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
                         surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
                         if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
+                        if (Config.getPrayCD()>0)warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
                         return warnMsgBuilder.toString().trimIndent()
                     }
-                    pray(sender.id.toString(), url, dlg)
+                    pray(Config.permPrayTen, url, dlg)
                     return@subscribeAlways
                 }
 
@@ -682,10 +699,10 @@ object PluginMain : KotlinPlugin(
                         var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
                         surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
                         if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
+                        if (Config.getPrayCD()>0)warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
                         return warnMsgBuilder.toString().trimIndent()
                     }
-                    pray(sender.id.toString(), url, dlg)
+                    pray(Config.fullRolePrayOne, url, dlg)
                     return@subscribeAlways
                 }
 
@@ -699,10 +716,10 @@ object PluginMain : KotlinPlugin(
                         var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
                         surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
                         if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
+                        if (Config.getPrayCD()>0)warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
                         return warnMsgBuilder.toString().trimIndent()
                     }
-                    pray(sender.id.toString(), url, dlg)
+                    pray(Config.fullRolePrayTen, url, dlg)
                     return@subscribeAlways
                 }
 
@@ -716,10 +733,10 @@ object PluginMain : KotlinPlugin(
                         var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
                         surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
                         if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
+                        if (Config.getPrayCD()>0)warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
                         return warnMsgBuilder.toString().trimIndent()
                     }
-                    pray(sender.id.toString(), url, dlg)
+                    pray(Config.fullArmPrayOne, url, dlg)
                     return@subscribeAlways
                 }
                 if (msgContent.startsWith(Config.fullArmPrayTen)) {
@@ -732,10 +749,10 @@ object PluginMain : KotlinPlugin(
                         var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
                         surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
                         if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.prayCDSeconds>0)warnMsgBuilder.append("，CD${Config.prayCDSeconds}秒")
+                        if (Config.getPrayCD()>0)warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
                         return warnMsgBuilder.toString().trimIndent()
                     }
-                    pray(sender.id.toString(), url, dlg)
+                    pray(Config.fullArmPrayTen, url, dlg)
                     return@subscribeAlways
                 }
 
