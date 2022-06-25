@@ -9,7 +9,6 @@ import com.hamster.pray.genshin.util.DateUtil
 import com.hamster.pray.genshin.util.HttpUtil
 import com.hamster.pray.genshin.util.RxUtils
 import com.hamster.pray.genshin.util.StringUtil
-import com.sun.org.apache.xalan.internal.lib.ExsltDatetime.date
 import kotlinx.coroutines.launch
 import net.mamoe.mirai.console.plugin.jvm.JvmPluginDescription
 import net.mamoe.mirai.console.plugin.jvm.KotlinPlugin
@@ -20,7 +19,6 @@ import net.mamoe.mirai.event.events.FriendMessageEvent
 import net.mamoe.mirai.event.events.GroupMessageEvent
 import net.mamoe.mirai.event.events.NewFriendRequestEvent
 import net.mamoe.mirai.message.data.MessageSource.Key.quote
-import net.mamoe.mirai.message.data.content
 import net.mamoe.mirai.utils.ExternalResource.Companion.uploadAsImage
 import net.mamoe.mirai.utils.info
 import okhttp3.*
@@ -139,7 +137,13 @@ object PluginMain : KotlinPlugin(
                                 val imgSaveDir = "${dataFolderPath}/download/${SimpleDateFormat("yyyyMMdd").format(Date(System.currentTimeMillis()))}"
                                 File(imgSaveDir).mkdirs()
                                 val imgSavePath = "${imgSaveDir}/${SimpleDateFormat("HHmmSS").format(Date(System.currentTimeMillis()))}.jpg"
-                                val imgMsg = HttpUtil.DownloadPicture(apiData.imgHttpUrl, imgSavePath).uploadAsImage(sender, "jpg")
+                                val imgFile = HttpUtil.DownloadPicture(apiData.imgHttpUrl, imgSavePath)
+                                if (imgFile == null) {
+                                    group.sendMessage("${Config.errorMsg}，图片下载失败了，url=${apiData.imgHttpUrl}")
+                                    return@launch
+                                }
+
+                                val imgMsg = imgFile?.uploadAsImage(sender, "jpg")
                                 group.sendMessage(message.quote() + prayMsg(apiData,upItem) + imgMsg);
 
                                 if (apiData.star5Goods.count() > 0 && Config.goldMsg.isNotBlank()) {

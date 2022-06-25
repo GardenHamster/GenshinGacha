@@ -4,8 +4,8 @@ import net.mamoe.mirai.console.data.AutoSavePluginConfig
 import net.mamoe.mirai.console.data.value
 
 object Config: AutoSavePluginConfig("config") {
-    val enabled_group:MutableList<Long> by value(mutableListOf())
-    val super_manager:MutableList<Long> by value(mutableListOf())
+    val enabled_group:MutableList<Long> by value(mutableListOf(1234,5678))
+    val super_manager:MutableList<Long> by value(mutableListOf(1234,5678))
     val apiUrl by value<String>("https://www.theresa3rd.cn:8080")
     val authorzation by value<String>("theresa3rd")
     val dailyLimit by value<Int>(0)
