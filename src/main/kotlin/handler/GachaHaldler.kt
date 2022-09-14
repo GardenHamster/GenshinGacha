@@ -1,8 +1,5 @@
 package com.hamster.pray.genshin.handler
 
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
-import com.google.gson.reflect.TypeToken
 import com.hamster.pray.genshin.PluginMain
 import com.hamster.pray.genshin.cache.PrayCoolingCache
 import com.hamster.pray.genshin.cache.PrayRecordCache
@@ -13,50 +10,43 @@ import com.hamster.pray.genshin.util.GachaUtil
 import com.hamster.pray.genshin.util.HttpUtil
 import com.hamster.pray.genshin.util.StringUtil
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import net.mamoe.mirai.contact.Group
 import net.mamoe.mirai.contact.Member
 import net.mamoe.mirai.contact.nameCardOrNick
 import net.mamoe.mirai.message.data.MessageChain
 import net.mamoe.mirai.message.data.MessageSource.Key.quote
 import net.mamoe.mirai.utils.ExternalResource.Companion.uploadAsImage
-import okhttp3.*
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
-import java.io.IOException
-import java.text.SimpleDateFormat
-import java.util.*
 
 class GachaHaldler(val group: Group, val sender: Member, val message: MessageChain) {
 
     private val memberCode: String = sender.id.toString()
     private val memberName: String = sender.nick
 
-    suspend fun checkPondIndex(instruction: String, command: String): Int {
+    private suspend fun checkPondIndex(instruction: String, command: String): Int {
         val pondIndexstr = StringUtil.splitKeyWord(instruction, command)
-        if (pondIndexstr.isNullOrEmpty() || pondIndexstr?.toIntOrNull() == null) {
+        if (pondIndexstr.isNullOrEmpty() || pondIndexstr.toIntOrNull() == null) {
             group.sendMessage(message.quote() + "指定的蛋池编号无效")
-            return -1;
+            return -1
         }
         var pondIndex = pondIndexstr.toInt() - 1
         if (pondIndex < 0) pondIndex = 0
-        return pondIndex;
+        return pondIndex
     }
 
     private suspend fun checkPrayUseUp(memberCode: String): Boolean{
-        if (!PrayRecordCache.isPrayUseUp(memberCode)) return false;
+        if (!PrayRecordCache.isPrayUseUp(memberCode)) return false
         if (Config.overLimitMsg.isNotBlank()) group.sendMessage(message.quote() + Config.overLimitMsg)
-        return true;
+        return true
     }
 
     private suspend fun checkMemberCooling(memberCode: String): Boolean {
-        if (!PrayCoolingCache.isCooling(memberCode)) return false;
-        if (Config.coolingMsg.isNullOrBlank()) return true;
-        val coolingSecond = PrayCoolingCache.getCoolingSecond(memberCode).toString();
+        if (!PrayCoolingCache.isCooling(memberCode)) return false
+        if (Config.coolingMsg.isBlank()) return true
+        val coolingSecond = PrayCoolingCache.getCoolingSecond(memberCode).toString()
         val coolingMsg = Config.coolingMsg.replace("{cdSeconds}", coolingSecond)
         group.sendMessage(message.quote() + coolingMsg)
-        return true;
+        return true
     }
 
     private suspend fun checkSuperManager(): Boolean{
@@ -90,7 +80,7 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
         return upItem
     }
 
-    private suspend fun downImg(apiData: PrayResult):File?{
+    private fun downImg(apiData: PrayResult):File?{
         val imgSaveDir = "${PluginMain.dataFolderPath}/download/${DateUtil.getDateStr()}"
         if (!File(imgSaveDir).exists()) File(imgSaveDir).mkdirs()
         val imgSavePath = "${imgSaveDir}/${System.currentTimeMillis()}.jpg"
@@ -98,7 +88,7 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
     }
 
     private fun getSurplusMsg(memberCode: String): String {
-        var surplusMagBuilder = StringBuilder();
+        val surplusMagBuilder = StringBuilder()
         var surplusTimes = PrayRecordCache.getSurplusTimes(memberCode) - 1
         if (surplusTimes < 0) surplusTimes = 0
         if (Config.dailyLimit > 0) surplusMagBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
@@ -107,9 +97,9 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
     }
 
     private suspend fun sendGoldMsg(apiData: PrayResult, pondName: String) {
-        if (apiData.star5Goods.isNullOrEmpty()) return
-        if (Config.goldMsg.isNullOrBlank()) return
-        var star5Item = "";
+        if (apiData.star5Goods.isEmpty()) return
+        if (Config.goldMsg.isBlank()) return
+        var star5Item = ""
         for (item in apiData.star5Goods) {
             if (star5Item.isNotEmpty()) star5Item += "+"
             star5Item += item.goodsName
@@ -123,13 +113,13 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
         group.sendMessage(goldMsg)
     }
 
-    private suspend fun doPray(pondName: String, apiResult: () -> ApiResult<PrayResult>, prayMsg: (prayResult: PrayResult) -> StringBuilder) {
+    private suspend fun doPray(pondName: String, getPrayResult: () -> ApiResult<PrayResult>, prayMsg: (prayResult: PrayResult) -> StringBuilder) {
         if (checkPrayUseUp(memberCode)) return
         if (checkMemberCooling(memberCode)) return
         PrayCoolingCache.setCooling(memberCode)
         if (Config.prayingMsg.isNotBlank()) group.sendMessage(Config.prayingMsg)
 
-        val apiResult = apiResult()
+        val apiResult = getPrayResult()
         if (!checkApiResult(apiResult)) return
         val apiData = apiResult.data
 
@@ -138,7 +128,7 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
 
         val imgMsg = imgFile?.uploadAsImage(sender, "jpg")?.toString() ?: ""
         group.sendMessage(message.quote() + prayMsg(apiData).toString() + imgMsg)
-        sendGoldMsg(apiData, pondName);
+        sendGoldMsg(apiData, pondName)
         PrayRecordCache.addPrayRecord(memberCode)
     }
 
@@ -156,7 +146,7 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
             resultMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
             resultMsgBuilder.append("距离下次小保底还剩${apiData.role90Surplus}抽，")
             resultMsgBuilder.append("大保底还剩${apiData.role180Surplus}抽")
-            resultMsgBuilder.append("${getSurplusMsg(memberCode)}")
+            resultMsgBuilder.append(getSurplusMsg(memberCode))
             return resultMsgBuilder
         }
         doPray(pondName, apiResult, prayMsg)
@@ -176,7 +166,7 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
             resultMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
             resultMsgBuilder.append("距离下次小保底还剩${apiData.role90Surplus}抽，")
             resultMsgBuilder.append("大保底还剩${apiData.role180Surplus}抽")
-            resultMsgBuilder.append("${getSurplusMsg(memberCode)}")
+            resultMsgBuilder.append(getSurplusMsg(memberCode))
             return resultMsgBuilder
         }
         doPray(pondName, apiResult, prayMsg)
@@ -194,7 +184,7 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
             resultMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
             resultMsgBuilder.append("距离下次保底还剩${apiData.arm80Surplus}抽，")
             resultMsgBuilder.append("当前命定值为：${apiData.armAssignValue}")
-            resultMsgBuilder.append("${getSurplusMsg(memberCode)}")
+            resultMsgBuilder.append(getSurplusMsg(memberCode))
             return resultMsgBuilder
         }
         doPray(pondName, apiResult, prayMsg)
@@ -212,7 +202,7 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
             resultMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
             resultMsgBuilder.append("距离下次保底还剩${apiData.arm80Surplus}抽，")
             resultMsgBuilder.append("当前命定值为：${apiData.armAssignValue}")
-            resultMsgBuilder.append("${getSurplusMsg(memberCode)}")
+            resultMsgBuilder.append(getSurplusMsg(memberCode))
             return resultMsgBuilder
         }
         doPray(pondName, apiResult, prayMsg)
@@ -229,7 +219,7 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
             resultMsgBuilder.append("当前卡池为：${getUpItems(apiData)}，")
             resultMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个相遇之缘，")
             resultMsgBuilder.append("距离下次保底还剩${apiData.perm90Surplus}抽，")
-            resultMsgBuilder.append("${getSurplusMsg(memberCode)}")
+            resultMsgBuilder.append(getSurplusMsg(memberCode))
             return resultMsgBuilder
         }
         doPray(pondName, apiResult, prayMsg)
@@ -246,7 +236,7 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
             resultMsgBuilder.append("当前卡池为：${getUpItems(apiData)}，")
             resultMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个相遇之缘，")
             resultMsgBuilder.append("距离下次保底还剩${apiData.perm90Surplus}抽，")
-            resultMsgBuilder.append("${getSurplusMsg(memberCode)}")
+            resultMsgBuilder.append(getSurplusMsg(memberCode))
             return resultMsgBuilder
         }
         doPray(pondName, apiResult, prayMsg)
@@ -262,7 +252,7 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
             if (apiData.star5Cost > 0) resultMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
             resultMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
             resultMsgBuilder.append("距离下次保底还剩${apiData.fullRole90Surplus}抽，")
-            resultMsgBuilder.append("${getSurplusMsg(memberCode)}")
+            resultMsgBuilder.append(getSurplusMsg(memberCode))
             return resultMsgBuilder
         }
         doPray(pondName, apiResult, prayMsg)
@@ -278,7 +268,7 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
             if (apiData.star5Cost > 0) resultMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
             resultMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
             resultMsgBuilder.append("距离下次保底还剩${apiData.fullRole90Surplus}抽，")
-            resultMsgBuilder.append("${getSurplusMsg(memberCode)}")
+            resultMsgBuilder.append(getSurplusMsg(memberCode))
             return resultMsgBuilder
         }
         doPray(pondName, apiResult, prayMsg)
@@ -294,7 +284,7 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
             if (apiData.star5Cost > 0) resultMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
             resultMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
             resultMsgBuilder.append("距离下次保底还剩${apiData.fullArm80Surplus}抽，")
-            resultMsgBuilder.append("${getSurplusMsg(memberCode)}")
+            resultMsgBuilder.append(getSurplusMsg(memberCode))
             return resultMsgBuilder
         }
         doPray(pondName, apiResult, prayMsg)
@@ -310,7 +300,7 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
             if (apiData.star5Cost > 0) resultMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
             resultMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
             resultMsgBuilder.append("距离下次保底还剩${apiData.fullArm80Surplus}抽，")
-            resultMsgBuilder.append("${getSurplusMsg(memberCode)}")
+            resultMsgBuilder.append(getSurplusMsg(memberCode))
             return resultMsgBuilder
         }
         doPray(pondName, apiResult, prayMsg)
@@ -318,23 +308,23 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
 
 
     suspend fun assign(msgContent: String, command: String) {
-        val goodsName = StringUtil.splitKeyWord(msgContent, command);
+        val goodsName = StringUtil.splitKeyWord(msgContent, command)
         if (goodsName.isNullOrEmpty() || goodsName.isNullOrBlank()) {
             group.sendMessage(message.quote() + "格式错误，请参考格式：#定轨薙草之稻光")
             return
         }
         val apiResult = GachaUtil.assign(memberCode, memberName, goodsName)
         if (!checkApiResult(apiResult)) return
-        group.sendMessage(message.quote() + "武器${goodsName}定轨成功!");
+        group.sendMessage(message.quote() + "武器${goodsName}定轨成功!")
     }
 
     suspend fun getPondInfo() {
         val apiResult = GachaUtil.getPondInfo()
         if (!checkApiResult(apiResult)) return
-        val apiData = apiResult.data;
-        var msgInfo = StringBuilder()
-        var roleInfo = StringBuilder()
-        var armInfo = StringBuilder()
+        val apiData = apiResult.data
+        val msgInfo = StringBuilder()
+        val roleInfo = StringBuilder()
+        val armInfo = StringBuilder()
         msgInfo.appendLine("目前up内容如下：")
         for (item in apiData.role) {
             roleInfo.appendLine(" 角色池${item.pondIndex + 1}：")
@@ -352,39 +342,39 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
         for (star4 in apiData.arm[0].pondInfo.star4UpList) {
             armInfo.appendLine("  4星：${star4.goodsName}")
         }
-        group.sendMessage(message.quote() + msgInfo.toString() + roleInfo.toString() + armInfo.toString());
+        group.sendMessage(message.quote() + msgInfo.toString() + roleInfo.toString() + armInfo.toString())
     }
 
     suspend fun getPrayDetail() {
         val apiResult = GachaUtil.getPrayDetail(memberCode)
         if (!checkApiResult(apiResult)) return
-        val apiData = apiResult.data;
+        val apiData = apiResult.data
 
-        var msgInfo = StringBuilder()
+        val msgInfo = StringBuilder()
         msgInfo.appendLine("你的祈愿详情如下：")
-        msgInfo.appendLine("角色池大保底剩余抽数：${apiData.role180Surplus}");
-        msgInfo.appendLine("角色池小保底剩余抽数：${apiData.role90Surplus}");
-        msgInfo.appendLine("武器池命定值：${apiData.armAssignValue}");
-        msgInfo.appendLine("武器池保底剩余抽数：${apiData.arm80Surplus}");
-        msgInfo.appendLine("常驻池保底剩余抽数：${apiData.perm90Surplus}");
-        msgInfo.appendLine("角色池累计抽取次数：${apiData.rolePrayTimes}");
-        msgInfo.appendLine("武器池累计抽取次数：${apiData.armPrayTimes}");
-        msgInfo.appendLine("常驻池累计抽取次数：${apiData.permPrayTimes}");
-        msgInfo.appendLine("所有池累计抽取次数：${apiData.totalPrayTimes}");
-        msgInfo.appendLine("累计获得5星数量${apiData.star5Count}");
-        msgInfo.appendLine("累计获得4星数量：${apiData.star4Count}");
-        msgInfo.appendLine("5星出率：${apiData.star5Rate}%");
-        msgInfo.appendLine("4星出率：${apiData.star4Rate}%");
-        group.sendMessage(message.quote() + msgInfo.toString());
+        msgInfo.appendLine("角色池大保底剩余抽数：${apiData.role180Surplus}")
+        msgInfo.appendLine("角色池小保底剩余抽数：${apiData.role90Surplus}")
+        msgInfo.appendLine("武器池命定值：${apiData.armAssignValue}")
+        msgInfo.appendLine("武器池保底剩余抽数：${apiData.arm80Surplus}")
+        msgInfo.appendLine("常驻池保底剩余抽数：${apiData.perm90Surplus}")
+        msgInfo.appendLine("角色池累计抽取次数：${apiData.rolePrayTimes}")
+        msgInfo.appendLine("武器池累计抽取次数：${apiData.armPrayTimes}")
+        msgInfo.appendLine("常驻池累计抽取次数：${apiData.permPrayTimes}")
+        msgInfo.appendLine("所有池累计抽取次数：${apiData.totalPrayTimes}")
+        msgInfo.appendLine("累计获得5星数量${apiData.star5Count}")
+        msgInfo.appendLine("累计获得4星数量：${apiData.star4Count}")
+        msgInfo.appendLine("5星出率：${apiData.star5Rate}%")
+        msgInfo.appendLine("4星出率：${apiData.star4Rate}%")
+        group.sendMessage(message.quote() + msgInfo.toString())
     }
 
     suspend fun getPrayRecord() {
         val apiResult = GachaUtil.getPrayRecords(memberCode)
         if (!checkApiResult(apiResult)) return
-        val apiData = apiResult.data;
+        val apiData = apiResult.data
 
-        var msgInfo = StringBuilder()
-        var star5Info = StringBuilder()
+        val msgInfo = StringBuilder()
+        val star5Info = StringBuilder()
 
         msgInfo.appendLine("祈愿记录如下：")
 
@@ -393,23 +383,23 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
         for (item in apiData.star5.all) {
             star5Info.appendLine("${item.goodsName}[${item.cost}]${item.createDate}")
         }
-        group.sendMessage(message.quote() + msgInfo.toString() + star5Info.toString());
+        group.sendMessage(message.quote() + msgInfo.toString() + star5Info.toString())
     }
 
     suspend fun getLuckRanking() {
         val apiResult = GachaUtil.getLuckRanking()
         if (!checkApiResult(apiResult)) return
-        val apiData = apiResult.data;
+        val apiData = apiResult.data
 
-        var msgInfo = StringBuilder()
-        var star5Info = StringBuilder()
+        val msgInfo = StringBuilder()
+        val star5Info = StringBuilder()
 
         msgInfo.appendLine("出货率最高的前${apiData.top}名成员如下，统计开始日期：${apiData.startDate}，排行结果每5分钟缓存一次")
         star5Info.appendLine("名称(id)[5星数量/累计抽数=5星出率]")
         for (item in apiData.star5Ranking) {
             star5Info.appendLine("  ${item.memberName}(${item.memberCode})[${item.count}/${item.totalPrayTimes}=${item.rate}%]")
         }
-        group.sendMessage(message.quote() + msgInfo.toString() + star5Info.toString());
+        group.sendMessage(message.quote() + msgInfo.toString() + star5Info.toString())
     }
 
     suspend fun setRolePond(msgContent: String, command: String) {
@@ -420,7 +410,7 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
             group.sendMessage(message.quote() + "格式错误，请参考格式：#设定角色池[编号(1~10,或者可以不指定)] 雷电将军，五郎，云堇，香菱")
             return
         }
-        var pondIndex = paramArr[0]?.toIntOrNull()
+        var pondIndex = paramArr[0].toIntOrNull()
         if (pondIndex != null) paramArr = paramArr.copyOfRange(1, paramArr.count())
         if (paramArr.count() != 4) {
             group.sendMessage(message.quote() + "必须指定1个五星和3个四星角色")
@@ -434,13 +424,13 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
         pondIndex = if (pondIndex - 1 < 0) 0 else pondIndex - 1
         val apiResult = GachaUtil.setRolePond(pondIndex, paramArr)
         if (!checkApiResult(apiResult)) return
-        group.sendMessage(message.quote() + "配置成功!");
+        group.sendMessage(message.quote() + "配置成功!")
     }
 
     suspend fun setArmPond(msgContent: String, command: String) {
         if (!checkSuperManager()) return
         val paramStr = StringUtil.splitKeyWord(msgContent, command)
-        var paramArr = paramStr?.trim()?.split("[,， ]+".toRegex())?.dropLastWhile { it.isEmpty() }?.toTypedArray()
+        val paramArr = paramStr?.trim()?.split("[,， ]+".toRegex())?.dropLastWhile { it.isEmpty() }?.toTypedArray()
         if (paramArr.isNullOrEmpty()) {
             group.sendMessage(message.quote() + "格式错误，请参考格式：#设定武器池 薙草之稻光 不灭月华 恶王丸 曚云之月 匣里龙吟 西风长枪 祭礼残章")
             return
@@ -451,21 +441,21 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
         }
         val apiResult = GachaUtil.setArmPond(paramArr)
         if (!checkApiResult(apiResult)) return
-        group.sendMessage(message.quote() + "配置成功!");
+        group.sendMessage(message.quote() + "配置成功!")
     }
 
     suspend fun resetRolePond() {
         if (!checkSuperManager()) return
         val apiResult = GachaUtil.resetRolePond()
         if (!checkApiResult(apiResult)) return
-        group.sendMessage(message.quote() + "重置成功!");
+        group.sendMessage(message.quote() + "重置成功!")
     }
 
     suspend fun resetArmPond() {
         if (!checkSuperManager()) return
         val apiResult = GachaUtil.resetArmPond()
         if (!checkApiResult(apiResult)) return
-        group.sendMessage(message.quote() + "重置成功!");
+        group.sendMessage(message.quote() + "重置成功!")
     }
 
     suspend fun setSkinRate(msgContent: String, command: String) {
@@ -482,7 +472,7 @@ class GachaHaldler(val group: Group, val sender: Member, val message: MessageCha
         }
         val apiResult = GachaUtil.setSkinRate(skinRate)
         if (!checkApiResult(apiResult)) return
-        group.sendMessage(message.quote() + "设置成功!");
+        group.sendMessage(message.quote() + "设置成功!")
     }
 
 

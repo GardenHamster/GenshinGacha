@@ -2,11 +2,9 @@ package com.hamster.pray.genshin
 
 import com.hamster.pray.genshin.cache.PrayRecordCache
 import com.hamster.pray.genshin.config.Config
-import com.hamster.pray.genshin.data.*
 import com.hamster.pray.genshin.handler.GachaHaldler
 import com.hamster.pray.genshin.timer.AutoClearTask
 import com.hamster.pray.genshin.util.DateUtil
-import com.hamster.pray.genshin.util.StringUtil
 import net.mamoe.mirai.console.plugin.jvm.JvmPluginDescription
 import net.mamoe.mirai.console.plugin.jvm.KotlinPlugin
 import net.mamoe.mirai.event.GlobalEventChannel
@@ -16,7 +14,6 @@ import net.mamoe.mirai.event.events.GroupMessageEvent
 import net.mamoe.mirai.event.events.NewFriendRequestEvent
 import net.mamoe.mirai.message.data.MessageSource.Key.quote
 import net.mamoe.mirai.utils.info
-import okhttp3.*
 import java.util.*
 
 
@@ -58,7 +55,7 @@ object PluginMain : KotlinPlugin(
         logger.info { "Plugin loaded" }
         val clearTask = AutoClearTask(logger, "${dataFolderPath}/download/")
         val clearStartDate = DateUtil.getHourStart(4)
-        Timer().schedule(clearTask, clearStartDate, 24 * 60 * 60 * 1000)
+        Timer().schedule(clearTask, clearStartDate, 86400000)
         logger.info { "启动定时清理任务，每天凌晨4点自动清理历史下载图片..." }
         //配置文件目录 "${dataFolder.absolutePath}/"
         val eventChannel = GlobalEventChannel.parentScope(this)
@@ -169,20 +166,20 @@ object PluginMain : KotlinPlugin(
                     return@subscribeAlways
                 }
 
-                if (Config.menu != null && Config.menu.count() > 0) {
+                if (Config.menu.isNotEmpty()) {
                     for (item in Config.menu) {
                         if (msgContent.contains(item)) {
-                            group.sendMessage(message.quote() + Config.menuMsg);
+                            group.sendMessage(message.quote() + Config.menuMsg)
                             return@subscribeAlways
                         }
                     }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                group.sendMessage(Config.errorMsg);
+                group.sendMessage(Config.errorMsg)
             } catch (e: Throwable) {
                 e.printStackTrace()
-                group.sendMessage(Config.errorMsg);
+                group.sendMessage(Config.errorMsg)
             }
         }
         eventChannel.subscribeAlways<FriendMessageEvent> {

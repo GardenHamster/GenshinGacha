@@ -19,7 +19,7 @@ class HttpUtil {
                 Request.Get(url).connectTimeout(30 * 1000).socketTimeout(30 * 1000).execute().saveContent(file)
                 return file
             } catch (e: Exception) {
-                return null;
+                return null
             }
         }
 
@@ -28,7 +28,7 @@ class HttpUtil {
                 .hostnameVerifier(RxUtils.TrustAllHostnameVerifier())
                 .sslSocketFactory(RxUtils().createSSLSocketFactory(), RxUtils.TrustAllCerts())
                 .build()
-            var builder = okhttp3.Request.Builder()
+            val builder = okhttp3.Request.Builder()
             builder.addHeader("Content-Type", "application/json")
             builder.addHeader("authorzation", Config.authorzation)
             builder.url(url).get()
@@ -47,7 +47,7 @@ class HttpUtil {
             } ?: run {
                 FormBody.Builder().build()
             }
-            var builder = okhttp3.Request.Builder()
+            val builder = okhttp3.Request.Builder()
             builder.addHeader("Content-Type", "application/json")
             builder.addHeader("authorzation", Config.authorzation)
             builder.url(url).post(requestBody)
