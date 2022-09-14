@@ -1,4 +1,4 @@
-package com.hamster.pray.genshin
+package com.hamster.pray.genshin.config
 
 import net.mamoe.mirai.console.data.AutoSavePluginConfig
 import net.mamoe.mirai.console.data.value

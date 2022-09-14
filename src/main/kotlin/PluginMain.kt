@@ -1,32 +1,22 @@
 package com.hamster.pray.genshin
 
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
-import com.google.gson.reflect.TypeToken
+import com.hamster.pray.genshin.cache.PrayRecordCache
+import com.hamster.pray.genshin.config.Config
 import com.hamster.pray.genshin.data.*
+import com.hamster.pray.genshin.handler.GachaHaldler
 import com.hamster.pray.genshin.timer.AutoClearTask
 import com.hamster.pray.genshin.util.DateUtil
-import com.hamster.pray.genshin.util.HttpUtil
-import com.hamster.pray.genshin.util.RxUtils
 import com.hamster.pray.genshin.util.StringUtil
-import kotlinx.coroutines.launch
 import net.mamoe.mirai.console.plugin.jvm.JvmPluginDescription
 import net.mamoe.mirai.console.plugin.jvm.KotlinPlugin
-import net.mamoe.mirai.contact.nameCardOrNick
 import net.mamoe.mirai.event.GlobalEventChannel
 import net.mamoe.mirai.event.events.BotInvitedJoinGroupRequestEvent
 import net.mamoe.mirai.event.events.FriendMessageEvent
 import net.mamoe.mirai.event.events.GroupMessageEvent
 import net.mamoe.mirai.event.events.NewFriendRequestEvent
 import net.mamoe.mirai.message.data.MessageSource.Key.quote
-import net.mamoe.mirai.utils.ExternalResource.Companion.uploadAsImage
 import net.mamoe.mirai.utils.info
 import okhttp3.*
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.File
-import java.io.IOException
-import java.text.SimpleDateFormat
 import java.util.*
 
 
@@ -50,7 +40,7 @@ object PluginMain : KotlinPlugin(
     JvmPluginDescription(
         id = "com.hamster.pray.genshin",
         name = "原神模拟抽卡",
-        version = "1.2.1"
+        version = "1.3.0"
     ) {
         author("花园仓鼠")
         info(
@@ -64,7 +54,7 @@ object PluginMain : KotlinPlugin(
         logger.info("加载配置....")
         Config.reload()
         logger.info("加载数据....")
-        PrayRecordData.reload()
+        PrayRecordCache.reload()
         logger.info { "Plugin loaded" }
         val clearTask = AutoClearTask(logger, "${dataFolderPath}/download/")
         val clearStartDate = DateUtil.getHourStart(4)
@@ -73,410 +63,9 @@ object PluginMain : KotlinPlugin(
         //配置文件目录 "${dataFolder.absolutePath}/"
         val eventChannel = GlobalEventChannel.parentScope(this)
         eventChannel.subscribeAlways<GroupMessageEvent> {
-
-            val client = OkHttpClient().newBuilder()
-            .hostnameVerifier(RxUtils.TrustAllHostnameVerifier())
-            .sslSocketFactory(RxUtils().createSSLSocketFactory(), RxUtils.TrustAllCerts())
-            .build()
-            val JSON: MediaType = "application/json".toMediaType()
-
-            var builder = Request.Builder()
-            builder.addHeader("Content-Type", "application/json")
-            builder.addHeader("authorzation", Config.authorzation)
-
-            fun pray(prayType: String, url: String, prayMsg: (prayResult: PrayResult, upItem: String) -> String) {
-                if (PrayRecordData.isPrayUseUp(sender.id.toString())) {
-                    launch {
-                        if(Config.overLimitMsg.isNotBlank()){
-                            group.sendMessage(message.quote() + Config.overLimitMsg)
-                        }
-                    }
-                    return
-                }
-
-                if(PrayCoolingData.isCooling(sender.id.toString())){
-                    launch{
-                        if(Config.coolingMsg.isNotBlank()){
-                            group.sendMessage(message.quote() + Config.coolingMsg.replace("{cdSeconds}",PrayCoolingData.getCoolingSecond(sender.id.toString()).toString()))
-                        }
-                    }
-                    return
-                }
-
-                PrayCoolingData.setCooling(sender.id.toString())
-
-                launch {
-                    if(Config.prayingMsg.isNotBlank()) group.sendMessage(Config.prayingMsg)
-                }
-
-                builder.url(url).get()
-                client.newCall(builder.build()).enqueue(object : Callback {
-                    override fun onFailure(call: Call, e: IOException) {
-                        launch {
-                            group.sendMessage("${Config.errorMsg}，${e.message}")
-                        }
-                    }
-
-                    override fun onResponse(call: Call, response: Response) {
-                        launch {
-                            try {
-                                val type = object : TypeToken<ApiResult<PrayResult>>() {}.type
-                                val apiResult = Gson().fromJson<ApiResult<PrayResult>>(response.body!!.string(), type)
-                                val apiData = apiResult.data;
-                                if (apiResult.code != 0) {
-                                    group.sendMessage("${Config.errorMsg}，接口返回code：${apiResult.code}，接口返回message：${apiResult.message}")
-                                    return@launch
-                                }
-
-                                var upItem = ""
-                                for (item in apiData.star5Up) {
-                                    if (upItem.isNotEmpty()) upItem += "+"
-                                    upItem += item.goodsName
-                                }
-
-                                val imgSaveDir = "${dataFolderPath}/download/${SimpleDateFormat("yyyyMMdd").format(Date(System.currentTimeMillis()))}"
-                                File(imgSaveDir).mkdirs()
-                                val imgSavePath = "${imgSaveDir}/${SimpleDateFormat("HHmmSS").format(Date(System.currentTimeMillis()))}.jpg"
-                                val imgFile = HttpUtil.DownloadPicture(apiData.imgHttpUrl, imgSavePath)
-                                if (imgFile == null) {
-                                    group.sendMessage("${Config.errorMsg}，图片下载失败了，url=${apiData.imgHttpUrl}")
-                                    return@launch
-                                }
-
-                                val imgMsg = imgFile?.uploadAsImage(sender, "jpg")
-                                group.sendMessage(message.quote() + prayMsg(apiData,upItem) + imgMsg);
-
-                                if (apiData.star5Goods.count() > 0 && Config.goldMsg.isNotBlank()) {
-                                    var star5Item = "";
-                                    for (item in apiData.star5Goods) {
-                                        if (star5Item.isNotEmpty()) star5Item += "+"
-                                        star5Item += item.goodsName
-                                    }
-                                    var goldMsg = Config.goldMsg.trim()
-                                    goldMsg = goldMsg.replace("{userName}", sender.nameCardOrNick)
-                                    goldMsg = goldMsg.replace("{prayType}", prayType)
-                                    goldMsg = goldMsg.replace("{goodsName}", star5Item)
-                                    goldMsg = goldMsg.replace("{star5Cost}", apiData.star5Cost.toString())
-                                    Thread.sleep(2 * 1000);
-                                    group.sendMessage(goldMsg)
-                                }
-
-                                PrayRecordData.addPrayRecord(sender.id.toString())
-                            }
-                            catch (e:Exception){
-                                group.sendMessage("${Config.errorMsg}，${e.message}")
-                            }
-                        }
-                    }
-                })
-            }
-
-            fun assign(url: String) {
-                builder.url(url).get()
-                client.newCall(builder.build()).enqueue(object : Callback {
-                    override fun onFailure(call: Call, e: IOException) {
-                        launch {
-                            group.sendMessage("${Config.errorMsg}，接口异常了")
-                        }
-                    }
-
-                    override fun onResponse(call: Call, response: Response) {
-                        launch {
-                            val type = object : TypeToken<ApiResult<Any>>() {}.type
-                            val apiResult = Gson().fromJson<ApiResult<Any>>(response.body!!.string(), type)
-                            if (apiResult.code != 0) {
-                                group.sendMessage("${Config.errorMsg}，接口返回code：${apiResult.code}，接口返回message：${apiResult.message}")
-                                return@launch
-                            }
-                            group.sendMessage(message.quote() + "定轨成功!");
-                        }
-                    }
-                })
-            }
-
-            fun getPondInfo(url: String) {
-                builder.url(url).get()
-                client.newCall(builder.build()).enqueue(object : Callback {
-                    override fun onFailure(call: Call, e: IOException) {
-                        launch {
-                            group.sendMessage("${Config.errorMsg}，接口异常了")
-                        }
-                    }
-
-                    override fun onResponse(call: Call, response: Response) {
-                        launch {
-                            val type = object : TypeToken<ApiResult<PondInfo>>() {}.type
-                            val apiResult = Gson().fromJson<ApiResult<PondInfo>>(response.body!!.string(), type)
-                            val apiData = apiResult.data;
-                            if (apiResult.code != 0) {
-                                group.sendMessage("${Config.errorMsg}，接口返回code：${apiResult.code}，接口返回message：${apiResult.message}")
-                                return@launch
-                            }
-                            var msgInfo=StringBuilder()
-                            var roleInfo=StringBuilder()
-                            var armInfo=StringBuilder()
-
-                            msgInfo.appendLine("目前up内容如下：")
-
-                            for (item in apiData.role) {
-                                roleInfo.appendLine(" 角色池${item.pondIndex+1}：")
-                                for (star5 in item.pondInfo.star5UpList){
-                                    roleInfo.appendLine("  5星：${star5.goodsName}")
-                                }
-                                for (star4 in item.pondInfo.star4UpList){
-                                    roleInfo.appendLine("  4星：${star4.goodsName}")
-                                }
-                            }
-
-                            armInfo.appendLine(" 武器池：")
-                            for (star5 in apiData.arm[0].pondInfo.star5UpList) {
-                                armInfo.appendLine("  5星：${star5.goodsName}")
-                            }
-                            for (star4 in apiData.arm[0].pondInfo.star4UpList) {
-                                armInfo.appendLine("  4星：${star4.goodsName}")
-                            }
-
-                            group.sendMessage(message.quote() + msgInfo.toString() + roleInfo.toString() + armInfo.toString());
-                        }
-                    }
-                })
-            }
-
-            fun getPrayDetail(url: String) {
-                builder.url(url).get()
-                client.newCall(builder.build()).enqueue(object : Callback {
-                    override fun onFailure(call: Call, e: IOException) {
-                        launch {
-                            group.sendMessage("${Config.errorMsg}，接口异常了")
-                        }
-                    }
-
-                    override fun onResponse(call: Call, response: Response) {
-                        launch {
-                            val type = object : TypeToken<ApiResult<PrayDetail>>() {}.type
-                            val apiResult = Gson().fromJson<ApiResult<PrayDetail>>(response.body!!.string(), type)
-                            val apiData = apiResult.data;
-                            if (apiResult.code != 0) {
-                                group.sendMessage("${Config.errorMsg}，接口返回code：${apiResult.code}，接口返回message：${apiResult.message}")
-                                return@launch
-                            }
-                            var msgInfo=StringBuilder()
-                            msgInfo.appendLine("你的祈愿详情如下：")
-                            msgInfo.appendLine("角色池大保底剩余抽数：${apiData.role180Surplus}");
-                            msgInfo.appendLine("角色池小保底剩余抽数：${apiData.role90Surplus}");
-                            msgInfo.appendLine("武器池命定值：${apiData.armAssignValue}");
-                            msgInfo.appendLine("武器池保底剩余抽数：${apiData.arm80Surplus}");
-                            msgInfo.appendLine("常驻池保底剩余抽数：${apiData.perm90Surplus}");
-                            msgInfo.appendLine("角色池累计抽取次数：${apiData.rolePrayTimes}");
-                            msgInfo.appendLine("武器池累计抽取次数：${apiData.armPrayTimes}");
-                            msgInfo.appendLine("常驻池累计抽取次数：${apiData.permPrayTimes}");
-                            msgInfo.appendLine("所有池累计抽取次数：${apiData.totalPrayTimes}");
-                            msgInfo.appendLine("累计获得5星数量${apiData.star5Count}");
-                            msgInfo.appendLine("累计获得4星数量：${apiData.star4Count}");
-                            msgInfo.appendLine("5星出率：${apiData.star5Rate}%");
-                            msgInfo.appendLine("4星出率：${apiData.star4Rate}%");
-                            group.sendMessage(message.quote() + msgInfo.toString());
-                        }
-                    }
-                })
-            }
-
-            fun getPrayRecord(url: String) {
-                builder.url(url).get()
-                client.newCall(builder.build()).enqueue(object : Callback {
-                    override fun onFailure(call: Call, e: IOException) {
-                        launch {
-                            group.sendMessage("${Config.errorMsg}，接口异常了")
-                        }
-                    }
-
-                    override fun onResponse(call: Call, response: Response) {
-                        launch {
-                            val type = object : TypeToken<ApiResult<PrayRecord>>() {}.type
-                            val apiResult = Gson().fromJson<ApiResult<PrayRecord>>(response.body!!.string(), type)
-                            val apiData = apiResult.data;
-                            if (apiResult.code != 0) {
-                                group.sendMessage("${Config.errorMsg}，接口返回code：${apiResult.code}，接口返回message：${apiResult.message}")
-                                return@launch
-                            }
-
-                            var msgInfo=StringBuilder()
-                            var star5Info=StringBuilder()
-
-                            msgInfo.appendLine("祈愿记录如下：")
-
-                            star5Info.appendLine("5星列表：")
-                            star5Info.appendLine("物品[消耗抽数]获取时间")
-                            for (item in apiData.star5.all) {
-                                star5Info.appendLine("${item.goodsName}[${item.cost}]${item.createDate}")
-                            }
-
-                            group.sendMessage(message.quote() + msgInfo.toString() + star5Info.toString());
-                        }
-                    }
-                })
-            }
-
-            fun getLuckRanking(url: String) {
-                builder.url(url).get()
-                client.newCall(builder.build()).enqueue(object : Callback {
-                    override fun onFailure(call: Call, e: IOException) {
-                        launch {
-                            group.sendMessage("${Config.errorMsg}，接口异常了")
-                        }
-                    }
-
-                    override fun onResponse(call: Call, response: Response) {
-                        launch {
-                            val type = object : TypeToken<ApiResult<LuckRanking>>() {}.type
-                            val apiResult = Gson().fromJson<ApiResult<LuckRanking>>(response.body!!.string(), type)
-                            val apiData = apiResult.data;
-                            if (apiResult.code != 0) {
-                                group.sendMessage("${Config.errorMsg}，接口返回code：${apiResult.code}，接口返回message：${apiResult.message}")
-                                return@launch
-                            }
-
-                            var msgInfo=StringBuilder()
-                            var star5Info=StringBuilder()
-
-                            msgInfo.appendLine("出货率最高的前${apiData.top}名成员如下，统计开始日期：${apiData.startDate}，排行结果每5分钟缓存一次")
-                            star5Info.appendLine("名称(id)[5星数量/累计抽数=5星出率]")
-                            for (item in apiData.star5Ranking) {
-                                star5Info.appendLine("  ${item.memberName}(${item.memberCode})[${item.count}/${item.totalPrayTimes}=${item.rate}%]")
-                            }
-
-                            group.sendMessage(message.quote() + msgInfo.toString() + star5Info.toString());
-                        }
-                    }
-                })
-            }
-
-            fun setRolePond(url: String, pondIndex: Int, upItems: Array<String>) {
-                var params: MutableMap<String, Any> = mutableMapOf<String, Any>()
-                params.set("pondIndex", pondIndex)
-                params.set("upItems",upItems)
-
-                val jsonStr = GsonBuilder().create().toJson(params)
-                val contentType: MediaType = "application/json; charset=utf-8".toMediaType()
-                val requestBody = jsonStr.toRequestBody(contentType)
-
-                builder.url(url).post(requestBody)
-                client.newCall(builder.build()).enqueue(object : Callback {
-                    override fun onFailure(call: Call, e: IOException) {
-                        launch {
-                            group.sendMessage("${Config.errorMsg}，接口异常了")
-                        }
-                    }
-
-                    override fun onResponse(call: Call, response: Response) {
-                        launch {
-                            val type = object : TypeToken<ApiResult<Any>>() {}.type
-                            val apiResult = Gson().fromJson<ApiResult<Any>>(response.body!!.string(), type)
-                            if (apiResult.code != 0) {
-                                group.sendMessage("${Config.errorMsg}，接口返回code：${apiResult.code}，接口返回message：${apiResult.message}")
-                                return@launch
-                            }
-                            group.sendMessage(message.quote() + "配置成功!");
-                        }
-                    }
-                })
-            }
-
-            fun setArmPond(url: String, upItems: Array<String>) {
-                var params: MutableMap<String, Any> = mutableMapOf<String, Any>()
-                params.set("upItems",upItems)
-
-                val jsonStr = GsonBuilder().create().toJson(params)
-                val contentType: MediaType = "application/json; charset=utf-8".toMediaType()
-                val requestBody = jsonStr.toRequestBody(contentType)
-
-                builder.url(url).post(requestBody)
-                client.newCall(builder.build()).enqueue(object : Callback {
-                    override fun onFailure(call: Call, e: IOException) {
-                        launch {
-                            group.sendMessage("${Config.errorMsg}，接口异常了")
-                        }
-                    }
-
-                    override fun onResponse(call: Call, response: Response) {
-                        launch {
-                            val type = object : TypeToken<ApiResult<Any>>() {}.type
-                            val apiResult = Gson().fromJson<ApiResult<Any>>(response.body!!.string(), type)
-                            if (apiResult.code != 0) {
-                                group.sendMessage("${Config.errorMsg}，接口返回code：${apiResult.code}，接口返回message：${apiResult.message}")
-                                return@launch
-                            }
-                            group.sendMessage(message.quote() + "配置成功!");
-                        }
-                    }
-                })
-            }
-
-            fun resetPond(url: String) {
-                var params: MutableMap<String, Any> = mutableMapOf<String, Any>()
-                val jsonStr = GsonBuilder().create().toJson(params)
-                val contentType: MediaType = "application/json; charset=utf-8".toMediaType()
-                val requestBody = jsonStr.toRequestBody(contentType)
-
-                builder.url(url).post(requestBody)
-                client.newCall(builder.build()).enqueue(object : Callback {
-                    override fun onFailure(call: Call, e: IOException) {
-                        launch {
-                            group.sendMessage("${Config.errorMsg}，接口异常了")
-                        }
-                    }
-
-                    override fun onResponse(call: Call, response: Response) {
-                        launch {
-                            val type = object : TypeToken<ApiResult<Any>>() {}.type
-                            val apiResult = Gson().fromJson<ApiResult<Any>>(response.body!!.string(), type)
-                            if (apiResult.code != 0) {
-                                group.sendMessage("${Config.errorMsg}，接口返回code：${apiResult.code}，接口返回message：${apiResult.message}")
-                                return@launch
-                            }
-                            group.sendMessage(message.quote() + "重置成功!");
-                        }
-                    }
-                })
-            }
-
-            fun setSkinRate(url: String) {
-                var params: MutableMap<String, Any> = mutableMapOf<String, Any>()
-                val jsonStr = GsonBuilder().create().toJson(params)
-                val contentType: MediaType = "application/json; charset=utf-8".toMediaType()
-                val requestBody = jsonStr.toRequestBody(contentType)
-
-                builder.url(url).post(requestBody)
-                client.newCall(builder.build()).enqueue(object : Callback {
-                    override fun onFailure(call: Call, e: IOException) {
-                        launch {
-                            group.sendMessage("${Config.errorMsg}，接口异常了")
-                        }
-                    }
-
-                    override fun onResponse(call: Call, response: Response) {
-                        launch {
-                            val type = object : TypeToken<ApiResult<Any>>() {}.type
-                            val apiResult = Gson().fromJson<ApiResult<Any>>(response.body!!.string(), type)
-                            if (apiResult.code != 0) {
-                                group.sendMessage("${Config.errorMsg}，接口返回code：${apiResult.code}，接口返回message：${apiResult.message}")
-                                return@launch
-                            }
-                            group.sendMessage(message.quote() + "设置成功!");
-                        }
-                    }
-                })
-            }
-
-            fun sendMenuMsg() {
-                launch {
-                    group.sendMessage(message.quote() + Config.menuMsg);
-                }
-            }
-
             try {
                 if (group.id !in Config.enabled_group) return@subscribeAlways
-
+                val gaucheHandler= GachaHaldler(group,sender,message)
                 val atStr = "@${bot.id}"
                 val contentStr = message.contentToString()
 
@@ -490,328 +79,104 @@ object PluginMain : KotlinPlugin(
                 if (msgContent.trim().isEmpty()) return@subscribeAlways
 
                 if (msgContent.startsWith(Config.setRolePond)) {
-                    if (sender.id !in Config.super_manager){
-                        group.sendMessage(message.quote() + "该指令需要管理员执行")
-                        return@subscribeAlways
-                    }
-                    val paramStr = StringUtil.splitKeyWord(msgContent, Config.setRolePond)
-                    var paramArr = paramStr?.trim()?.split("[,， ]+".toRegex())?.dropLastWhile { it.isEmpty() }?.toTypedArray()
-                    if (paramArr == null) {
-                        group.sendMessage(message.quote() + "格式错误，请参考格式：#设定角色池[编号(1~10,或者可以不指定)] 雷电将军，五郎，云堇，香菱")
-                        return@subscribeAlways
-                    }
-                    var pondIndex = paramArr[0]?.toIntOrNull()
-                    if (pondIndex != null) paramArr = paramArr.copyOfRange(1, paramArr.count())
-                    if (paramArr.count() != 4) {
-                        group.sendMessage(message.quote() + "必须指定1个五星和3个四星角色")
-                        return@subscribeAlways
-                    }
-                    if (pondIndex == null) pondIndex = 0
-                    if (pondIndex < 0 || pondIndex > 10) {
-                        group.sendMessage(message.quote() + "蛋池编号只能设定在1~10之间")
-                        return@subscribeAlways
-                    }
-                    pondIndex = if (pondIndex - 1 < 0) 0 else pondIndex - 1
-                    val url = "${Config.apiUrl}/api/PrayInfo/SetRolePond"
-                    setRolePond(url, pondIndex, paramArr)
+                    gaucheHandler.setRolePond(msgContent, Config.setRolePond)
                     return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.setArmPond)) {
-                    if (sender.id !in Config.super_manager){
-                        group.sendMessage(message.quote() + "该指令需要管理员执行")
-                        return@subscribeAlways
-                    }
-                    val paramStr = StringUtil.splitKeyWord(msgContent, Config.setArmPond)
-                    var paramArr = paramStr?.trim()?.split("[,， ]+".toRegex())?.dropLastWhile { it.isEmpty() }?.toTypedArray()
-                    if (paramArr == null) {
-                        group.sendMessage(message.quote() + "格式错误，请参考格式：#设定武器池 薙草之稻光 不灭月华 恶王丸 曚云之月 匣里龙吟 西风长枪 祭礼残章")
-                        return@subscribeAlways
-                    }
-                    if (paramArr.count() != 7) {
-                        group.sendMessage(message.quote() + "必须指定2件五星和5件四星武器")
-                        return@subscribeAlways
-                    }
-                    val url = "${Config.apiUrl}/api/PrayInfo/SetArmPond"
-                    setArmPond(url, paramArr)
+                    gaucheHandler.setArmPond(msgContent, Config.setArmPond)
                     return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.resetRolePond)) {
-                    if (sender.id !in Config.super_manager){
-                        group.sendMessage(message.quote() + "该指令需要管理员执行")
-                        return@subscribeAlways
-                    }
-                    val url = "${Config.apiUrl}/api/PrayInfo/ResetRolePond"
-                    resetPond(url)
+                    gaucheHandler.resetRolePond()
                     return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.resetArmPond)) {
-                    if (sender.id !in Config.super_manager){
-                        group.sendMessage(message.quote() + "该指令需要管理员执行")
-                        return@subscribeAlways
-                    }
-                    val url = "${Config.apiUrl}/api/PrayInfo/ResetArmPond";
-                    resetPond(url)
+                    gaucheHandler.resetArmPond()
                     return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.setSkinRate)) {
-                    if (sender.id !in Config.super_manager){
-                        group.sendMessage(message.quote() + "该指令需要管理员执行")
-                        return@subscribeAlways
-                    }
-                    val skinRateStr = StringUtil.splitKeyWord(msgContent, Config.setSkinRate)
-                    if (skinRateStr?.toIntOrNull() == null) {
-                        group.sendMessage(message.quote() + "概率必须在0~100之间")
-                        return@subscribeAlways
-                    }
-                    val skinRate = skinRateStr.toInt()
-                    if (skinRate < 0 || skinRate > 100) {
-                        group.sendMessage(message.quote() + "概率必须在0~100之间")
-                        return@subscribeAlways
-                    }
-                    val url = "${Config.apiUrl}/api/PrayInfo/SetSkinRate?rare=${skinRate}"
-                    setSkinRate(url)
+                    gaucheHandler.setSkinRate(msgContent, Config.setArmPond)
                     return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.rolePrayOne)) {
-                    val pondIndexstr = StringUtil.splitKeyWord(msgContent, Config.rolePrayOne)
-                    if (pondIndexstr.isNullOrEmpty() == false && pondIndexstr?.toIntOrNull() == null) {
-                        group.sendMessage(message.quote() + "指定的蛋池编号无效")
-                        return@subscribeAlways
-                    }
-                    var pondIndex = if (pondIndexstr.isNullOrEmpty()) 0 else pondIndexstr.toInt() - 1
-                    if (pondIndex < 0) pondIndex = 0
-                    val url = "${Config.apiUrl}/api/RolePray/PrayOne?memberCode=${sender.id}&memberName=${sender.nick}&pondIndex=${pondIndex}";
-                    val dlg = fun(apiData: PrayResult, upItem: String): String {
-                        val warnMsgBuilder = StringBuilder()
-                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
-                        warnMsgBuilder.append("当前卡池为：${upItem}，")
-                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
-                        warnMsgBuilder.append("距离下次小保底还剩${apiData.role90Surplus}抽，")
-                        warnMsgBuilder.append("大保底还剩${apiData.role180Surplus}抽")
-                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
-                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
-                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.getPrayCD() > 0) warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
-                        return warnMsgBuilder.toString().trimIndent()
-                    }
-                    pray(Config.rolePrayOne, url, dlg)
+                    gaucheHandler.rolePrayOne(msgContent, Config.rolePrayOne)
                     return@subscribeAlways
                 }
-
                 if (msgContent.startsWith(Config.rolePrayTen)) {
-                    val pondIndexstr = StringUtil.splitKeyWord(msgContent, Config.rolePrayTen);
-                    if (pondIndexstr.isNullOrEmpty() == false && pondIndexstr?.toIntOrNull() == null) {
-                        group.sendMessage(message.quote() + "指定的蛋池编号无效")
-                        return@subscribeAlways
-                    }
-                    var pondIndex = if (pondIndexstr.isNullOrEmpty()) 0 else pondIndexstr.toInt() - 1
-                    if (pondIndex < 0) pondIndex = 0
-                    val url = "${Config.apiUrl}/api/RolePray/PrayTen?memberCode=${sender.id}&memberName=${sender.nick}&pondIndex=${pondIndex}";
-                    val dlg = fun(apiData: PrayResult, upItem: String): String {
-                        val warnMsgBuilder = StringBuilder()
-                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
-                        warnMsgBuilder.append("当前卡池为：${upItem}，")
-                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
-                        warnMsgBuilder.append("距离下次小保底还剩${apiData.role90Surplus}抽，")
-                        warnMsgBuilder.append("大保底还剩${apiData.role180Surplus}抽")
-                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
-                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
-                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.getPrayCD()>0)warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
-                        return warnMsgBuilder.toString().trimIndent()
-                    }
-                    pray(Config.rolePrayTen, url, dlg)
+                    gaucheHandler.rolePrayTen(msgContent, Config.rolePrayTen)
                     return@subscribeAlways
                 }
-
                 if (msgContent.startsWith(Config.armPrayOne)) {
-                    val url = "${Config.apiUrl}/api/ArmPray/PrayOne?memberCode=${sender.id}&memberName=${sender.nick}";
-                    val dlg = fun(apiData: PrayResult, upItem: String): String {
-                        val warnMsgBuilder = StringBuilder()
-                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
-                        warnMsgBuilder.append("当前卡池为：${upItem}，")
-                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
-                        warnMsgBuilder.append("距离下次保底还剩${apiData.arm80Surplus}抽，")
-                        warnMsgBuilder.append("当前命定值为：${apiData.armAssignValue}")
-                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
-                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
-                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.getPrayCD()>0)warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
-                        return warnMsgBuilder.toString().trimIndent()
-                    }
-                    pray(Config.armPrayOne, url, dlg)
+                    gaucheHandler.armPrayOne()
                     return@subscribeAlways
                 }
                 if (msgContent.startsWith(Config.armPrayTen)) {
-                    val url = "${Config.apiUrl}/api/ArmPray/PrayTen?memberCode=${sender.id}&memberName=${sender.nick}";
-                    val dlg = fun(apiData: PrayResult, upItem: String): String {
-                        val warnMsgBuilder = StringBuilder()
-                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
-                        warnMsgBuilder.append("当前卡池为：${upItem}，")
-                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
-                        warnMsgBuilder.append("距离下次保底还剩${apiData.arm80Surplus}抽，")
-                        warnMsgBuilder.append("当前命定值为：${apiData.armAssignValue}")
-                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
-                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
-                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.getPrayCD()>0)warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
-                        return warnMsgBuilder.toString().trimIndent()
-                    }
-                    pray(Config.armPrayTen, url, dlg)
+                    gaucheHandler.armPrayTen()
                     return@subscribeAlways
                 }
-
                 if (msgContent.startsWith(Config.permPrayOne)) {
-                    val url = "${Config.apiUrl}/api/PermPray/PrayOne?memberCode=${sender.id}&memberName=${sender.nick}";
-                    val dlg = fun(apiData: PrayResult, upItem: String): String {
-                        val warnMsgBuilder = StringBuilder()
-                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
-                        warnMsgBuilder.append("当前卡池为：${upItem}，")
-                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个相遇之缘，")
-                        warnMsgBuilder.append("距离下次保底还剩${apiData.perm90Surplus}抽，")
-                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
-                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
-                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.getPrayCD()>0)warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
-                        return warnMsgBuilder.toString().trimIndent()
-                    }
-                    pray(Config.permPrayOne, url, dlg)
+                    gaucheHandler.permPrayOne()
                     return@subscribeAlways
                 }
                 if (msgContent.startsWith(Config.permPrayTen)) {
-                    val url = "${Config.apiUrl}/api/PermPray/PrayTen?memberCode=${sender.id}&memberName=${sender.nick}";
-                    val dlg = fun(apiData: PrayResult, upItem: String): String {
-                        val warnMsgBuilder = StringBuilder()
-                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
-                        warnMsgBuilder.append("当前卡池为：${upItem}，")
-                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个相遇之缘，")
-                        warnMsgBuilder.append("距离下次保底还剩${apiData.perm90Surplus}抽，")
-                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
-                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
-                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.getPrayCD()>0)warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
-                        return warnMsgBuilder.toString().trimIndent()
-                    }
-                    pray(Config.permPrayTen, url, dlg)
+                    gaucheHandler.permPrayTen()
                     return@subscribeAlways
                 }
-
                 if (msgContent.startsWith(Config.fullRolePrayOne)) {
-                    val url = "${Config.apiUrl}/api/FullRolePray/PrayOne?memberCode=${sender.id}&memberName=${sender.nick}";
-                    val dlg = fun(apiData: PrayResult, upItem: String): String {
-                        val warnMsgBuilder = StringBuilder()
-                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
-                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
-                        warnMsgBuilder.append("距离下次保底还剩${apiData.fullRole90Surplus}抽")
-                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
-                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
-                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.getPrayCD()>0)warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
-                        return warnMsgBuilder.toString().trimIndent()
-                    }
-                    pray(Config.fullRolePrayOne, url, dlg)
+                    gaucheHandler.fullRolePrayOne()
                     return@subscribeAlways
                 }
-
                 if (msgContent.startsWith(Config.fullRolePrayTen)) {
-                    val url = "${Config.apiUrl}/api/FullRolePray/PrayTen?memberCode=${sender.id}&memberName=${sender.nick}";
-                    val dlg = fun(apiData: PrayResult, upItem: String): String {
-                        val warnMsgBuilder = StringBuilder()
-                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
-                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
-                        warnMsgBuilder.append("距离下次保底还剩${apiData.fullRole90Surplus}抽")
-                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
-                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
-                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.getPrayCD()>0)warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
-                        return warnMsgBuilder.toString().trimIndent()
-                    }
-                    pray(Config.fullRolePrayTen, url, dlg)
+                    gaucheHandler.fullRolePrayTen()
                     return@subscribeAlways
                 }
-
                 if (msgContent.startsWith(Config.fullArmPrayOne)) {
-                    val url = "${Config.apiUrl}/api/FullArmPray/PrayOne?memberCode=${sender.id}&memberName=${sender.nick}";
-                    val dlg = fun(apiData: PrayResult, upItem: String): String {
-                        val warnMsgBuilder = StringBuilder()
-                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
-                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
-                        warnMsgBuilder.append("距离下次保底还剩${apiData.fullArm80Surplus}抽")
-                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
-                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
-                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.getPrayCD()>0)warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
-                        return warnMsgBuilder.toString().trimIndent()
-                    }
-                    pray(Config.fullArmPrayOne, url, dlg)
+                    gaucheHandler.fullArmPrayOne()
                     return@subscribeAlways
                 }
                 if (msgContent.startsWith(Config.fullArmPrayTen)) {
-                    val url = "${Config.apiUrl}/api/FullArmPray/PrayTen?memberCode=${sender.id}&memberName=${sender.nick}";
-                    val dlg = fun(apiData: PrayResult, upItem: String): String {
-                        val warnMsgBuilder = StringBuilder()
-                        if (apiData.star5Cost > 0) warnMsgBuilder.append("本次5星累计消耗${apiData.star5Cost}抽，")
-                        warnMsgBuilder.append("本次祈愿消耗${apiData.prayCount}个纠缠之缘，")
-                        warnMsgBuilder.append("距离下次保底还剩${apiData.fullArm80Surplus}抽")
-                        var surplusTimes = PrayRecordData.getSurplusTimes(sender.id.toString()) - 1
-                        surplusTimes = if (surplusTimes < 0) 0 else surplusTimes
-                        if (Config.dailyLimit>0) warnMsgBuilder.append("，今日剩余可用抽卡次数${surplusTimes}次")
-                        if (Config.getPrayCD()>0)warnMsgBuilder.append("，CD${Config.getPrayCD()}秒")
-                        return warnMsgBuilder.toString().trimIndent()
-                    }
-                    pray(Config.fullArmPrayTen, url, dlg)
+                    gaucheHandler.fullArmPrayTen()
                     return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.assign)) {
-                    val goodsName = StringUtil.splitKeyWord(msgContent, Config.assign);
-                    if (goodsName.isNullOrEmpty() || goodsName.isNullOrBlank()) {
-                        group.sendMessage(message.quote() + "格式错误，请参考格式：#定轨薙草之稻光")
-                        return@subscribeAlways
-                    }
-                    val url = "${Config.apiUrl}/api/PrayInfo/SetMemberAssign?memberCode=${sender.id}&memberName=${sender.nick}&goodsName=${goodsName}";
-                    assign(url)
+                    gaucheHandler.assign(msgContent, Config.assign)
                     return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.getPondInfo)) {
-                    val url = "${Config.apiUrl}/api/PrayInfo/GetPondInfo";
-                    getPondInfo(url)
+                    gaucheHandler.getPondInfo()
                     return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.getPrayDetail)) {
-                    val url = "${Config.apiUrl}/api/PrayInfo/GetMemberPrayDetail?memberCode=${sender.id}";
-                    getPrayDetail(url)
+                    gaucheHandler.getPrayDetail()
                     return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.getPrayRecords)) {
-                    val url = "${Config.apiUrl}/api/PrayInfo/GetMemberPrayRecords?memberCode=${sender.id}";
-                    getPrayRecord(url)
+                    gaucheHandler.getPrayRecord()
                     return@subscribeAlways
                 }
 
                 if (msgContent.startsWith(Config.getLuckRanking)) {
-                    val url = "${Config.apiUrl}/api/PrayInfo/GetLuckRanking";
-                    getLuckRanking(url)
+                    gaucheHandler.getLuckRanking()
                     return@subscribeAlways
                 }
 
                 if (Config.menu != null && Config.menu.count() > 0) {
                     for (item in Config.menu) {
                         if (msgContent.contains(item)) {
-                            sendMenuMsg()
+                            group.sendMessage(message.quote() + Config.menuMsg);
                             return@subscribeAlways
                         }
                     }
                 }
-
             } catch (e: Exception) {
                 e.printStackTrace()
                 group.sendMessage(Config.errorMsg);

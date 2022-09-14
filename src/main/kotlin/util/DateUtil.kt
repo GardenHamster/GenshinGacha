@@ -1,5 +1,6 @@
 package com.hamster.pray.genshin.util
 
+import java.text.SimpleDateFormat
 import java.util.*
 
 class DateUtil {
@@ -12,5 +13,10 @@ class DateUtil {
             cal.set(Calendar.MILLISECOND, 0)
             return Date(cal.timeInMillis)
         }
+
+        fun getDateStr(): String {
+            return SimpleDateFormat("yyyyMMdd").format(Date(System.currentTimeMillis()))
+        }
+
     }
 }

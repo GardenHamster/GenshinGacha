@@ -1,11 +1,12 @@
-package com.hamster.pray.genshin
+package com.hamster.pray.genshin.cache
 
+import com.hamster.pray.genshin.config.Config
 import com.hamster.pray.genshin.model.PrayRecord
 import net.mamoe.mirai.console.data.AutoSavePluginData
 import net.mamoe.mirai.console.data.value
 import java.util.*
 
-object PrayRecordData : AutoSavePluginData("PrayRecord") {
+object PrayRecordCache : AutoSavePluginData("PrayRecord") {
     var prayDate: Int by value(Date().date)
     var prayRecords: MutableList<PrayRecord> by value()
 

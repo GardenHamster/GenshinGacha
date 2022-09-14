@@ -1,12 +1,9 @@
-package com.hamster.pray.genshin
+package com.hamster.pray.genshin.cache
 
-import com.hamster.pray.genshin.model.PrayRecord
-import net.mamoe.mirai.console.data.AutoSavePluginData
-import net.mamoe.mirai.console.data.value
-import java.time.LocalDate
+import com.hamster.pray.genshin.config.Config
 import java.util.*
 
-class PrayCoolingData {
+class PrayCoolingCache {
     companion object {
         val prayCoolingMap: MutableMap<String, Long> = HashMap()
 
